@@ -13,8 +13,8 @@ export async function decideAction(
   // 1. Check unread messages (priority 10)
   const { data: unreadMessages } = await supabase
     .from('conversations')
-    .select('id, sender_id, content, created_at')
-    .eq('receiver_id', lobster_id)
+    .select('id, from_lobster_id, content, created_at')
+    .eq('to_lobster_id', lobster_id)
     .eq('is_read', false)
     .order('created_at', { ascending: true })
     .limit(1);
@@ -23,12 +23,12 @@ export async function decideAction(
     const msg = unreadMessages[0];
     const { data: sender } = await supabase
       .from('lobsters')
-      .select('id, lobster_name, emoji, personality, bio')
-      .eq('id', msg.sender_id)
+      .select('id, name, emoji, personality, bio')
+      .eq('id', msg.from_lobster_id)
       .single();
 
     const prompt = `你是这只龙虾，收到了一条新消息。
-【发信人】${sender?.emoji || '🦞'} ${sender?.lobster_name || '未知'}
+【发信人】${sender?.emoji || '🦞'} ${sender?.name || '未知'}
 【消息内容】${msg.content}
 
 【规则】
@@ -45,8 +45,8 @@ export async function decideAction(
       prompt,
       context: {
         message_id: msg.id,
-        sender_id: msg.sender_id,
-        sender_name: sender?.lobster_name,
+        sender_id: msg.from_lobster_id,
+        sender_name: sender?.name,
       },
     };
   }
@@ -128,7 +128,7 @@ export async function decideAction(
     // Get random lobster to visit
     const { data: allLobsters } = await supabase
       .from('lobsters')
-      .select('id, lobster_name, emoji, personality, bio')
+      .select('id, name, emoji, personality, bio')
       .neq('id', lobster_id)
       .limit(100);
 
@@ -136,14 +136,14 @@ export async function decideAction(
       const host = allLobsters[Math.floor(Math.random() * allLobsters.length)];
       const { data: visitor } = await supabase
         .from('lobsters')
-        .select('lobster_name, emoji, personality')
+        .select('name, emoji, personality')
         .eq('id', lobster_id)
         .single();
 
       return {
         action: 'visit_lobster',
         priority: 4,
-        prompt: `你是 ${visitor?.emoji || '🦞'} ${visitor?.lobster_name || '未知'}，看到 ${host.emoji || '🦞'} ${host.lobster_name} 的龙虾，决定打个招呼。
+        prompt: `你是 ${visitor?.emoji || '🦞'} ${visitor?.name || '未知'}，看到 ${host.emoji || '🦞'} ${host.name} 的龙虾，决定打个招呼。
 【你的性格】${visitor?.personality || '友善'}
 【对方资料】性格: ${host.personality || '未知'}, 简介: ${host.bio || '未知'}
 
@@ -156,7 +156,7 @@ export async function decideAction(
 请生成你说的第一句话：`,
         context: {
           host_id: host.id,
-          host_name: host.lobster_name,
+          host_name: host.name,
           visit_count_today: visitCount,
         },
       };

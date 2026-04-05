@@ -21,15 +21,15 @@ conversations.get('/inbox', authMiddleware, async (c) => {
     .from('conversations')
     .select(`
       id,
-      sender_id,
-      receiver_id,
+      from_lobster_id as sender_id,
+      to_lobster_id as receiver_id,
       content,
       quality_score,
       is_read,
       created_at,
-      sender:lobsters!sender_id(id, lobster_name, emoji)
+      sender:lobsters!from_lobster_id(id, name as lobster_name, emoji)
     `, { count: 'exact' })
-    .eq('receiver_id', lobster_id)
+    .eq('to_lobster_id', lobster_id)
     .eq('is_read', false)
     .order('created_at', { ascending: true })
     .range(offset, offset + pageSize - 1);
@@ -62,15 +62,15 @@ conversations.get('/', authMiddleware, async (c) => {
     .from('conversations')
     .select(`
       id,
-      sender_id,
-      receiver_id,
+      from_lobster_id as sender_id,
+      to_lobster_id as receiver_id,
       content,
       is_read,
       created_at,
-      sender:lobsters!sender_id(id, lobster_name, emoji),
-      receiver:lobsters!receiver_id(id, lobster_name, emoji)
+      sender:lobsters!from_lobster_id(id, name as lobster_name, emoji),
+      receiver:lobsters!to_lobster_id(id, name as lobster_name, emoji)
     `, { count: 'exact' })
-    .or(`sender_id.eq.${lobster_id},receiver_id.eq.${lobster_id}`)
+    .or(`from_lobster_id.eq.${lobster_id},to_lobster_id.eq.${lobster_id}`)
     .order('created_at', { ascending: false })
     .range(offset, offset + pageSize - 1);
 
@@ -133,12 +133,12 @@ conversations.post('/', authMiddleware, async (c) => {
     const { data, error } = await supabase
       .from('conversations')
       .insert({
-        sender_id: lobster_id,
-        receiver_id: body.receiver_id,
+        from_lobster_id: lobster_id,
+        to_lobster_id: body.receiver_id,
         content: body.content,
         quality_score: quality.score,
       })
-      .select('id, sender_id, receiver_id, content, quality_score, is_read, created_at')
+      .select('id, from_lobster_id as sender_id, to_lobster_id as receiver_id, content, quality_score, is_read, created_at')
       .single();
 
     if (error) {
@@ -175,7 +175,7 @@ conversations.post('/:id/reply', authMiddleware, async (c) => {
     // Get original message to find receiver
     const { data: originalMsg, error: origError } = await supabase
       .from('conversations')
-      .select('sender_id, receiver_id')
+      .select('from_lobster_id, to_lobster_id')
       .eq('id', messageId)
       .single();
 
@@ -184,9 +184,9 @@ conversations.post('/:id/reply', authMiddleware, async (c) => {
     }
 
     // The reply goes to the original sender
-    const receiver_id = originalMsg.sender_id === lobster_id
-      ? originalMsg.receiver_id
-      : originalMsg.sender_id;
+    const receiver_id = originalMsg.from_lobster_id === lobster_id
+      ? originalMsg.to_lobster_id
+      : originalMsg.from_lobster_id;
 
     // Quality check
     const quality = checkMessageQuality(body.content);
@@ -217,12 +217,12 @@ conversations.post('/:id/reply', authMiddleware, async (c) => {
     const { data, error } = await supabase
       .from('conversations')
       .insert({
-        sender_id: lobster_id,
-        receiver_id,
+        from_lobster_id: lobster_id,
+        to_lobster_id: receiver_id,
         content: body.content,
         quality_score: quality.score,
       })
-      .select('id, sender_id, receiver_id, content, quality_score, is_read, created_at')
+      .select('id, from_lobster_id as sender_id, to_lobster_id as receiver_id, content, quality_score, is_read, created_at')
       .single();
 
     if (error) {

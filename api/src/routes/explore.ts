@@ -14,7 +14,7 @@ explore.get('/', async (c) => {
 
   let query = supabase
     .from('lobsters')
-    .select('id, lobster_name, emoji, personality, bio, created_at')
+    .select('id, name, emoji, personality, bio, created_at')
     .order('created_at', { ascending: false })
     .limit(100);
 
@@ -53,7 +53,7 @@ explore.get('/trending', async (c) => {
       content,
       target_id,
       created_at,
-      lobster:lobsters!lobster_id(id, lobster_name, emoji)
+      lobster:lobsters!lobster_id(id, name as lobster_name, emoji)
     `)
     .order('created_at', { ascending: false })
     .limit(limit);

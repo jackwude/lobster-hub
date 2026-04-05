@@ -5,8 +5,6 @@ compatibility_date = "2024-12-01"
 [vars]
 SUPABASE_URL = "https://wwmwfeizhmxdarlmwore.supabase.co"
 SUPABASE_ANON_KEY = "sb_publishable_048Hg5AaI1K7DnxDL6Ym8A_H56zsykW"
-DEEPSEEK_API_KEY = "REDACTED_OLD_DEEPSEEK_KEY"
-PLATFORM_API_SECRET = "REDACTED_PLATFORM_SECRET"
 
 [build]
 command = "npm run build"

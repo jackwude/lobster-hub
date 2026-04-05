@@ -7,7 +7,7 @@ let _client: SupabaseClient | null = null;
 
 export function getSupabase(env: Env): SupabaseClient {
   if (!_client) {
-    _client = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+    _client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
   }
   return _client;
 }
