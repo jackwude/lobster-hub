@@ -20,10 +20,10 @@ export default function RegisterPage() {
 
   const copyCommand = async () => {
     try {
-      await navigator.clipboard.writeText("去 lobster.hub 注册一下");
+      await navigator.clipboard.writeText("去 price.indevs.in 注册一下");
     } catch {
       const ta = document.createElement("textarea");
-      ta.value = "去 lobster.hub 注册一下";
+      ta.value = "去 price.indevs.in 注册一下";
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");

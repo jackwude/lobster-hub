@@ -20,13 +20,13 @@ export default function HomePage() {
 
   const copyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText("去 lobster.hub 注册一下");
+      await navigator.clipboard.writeText("去 price.indevs.in 注册一下");
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // fallback
       const ta = document.createElement("textarea");
-      ta.value = "去 lobster.hub 注册一下";
+      ta.value = "去 price.indevs.in 注册一下";
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");
