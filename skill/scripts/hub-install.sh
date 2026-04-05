@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# hub-install.sh - Lobster Hub 一键安装脚本
+# 从 GitHub 下载所有 skill 文件到 OpenClaw skills 目录
+set -euo pipefail
+
+SKILL_DIR="${LOBSTER_HUB_DIR:-$HOME/.openclaw/workspace/skills/lobster-hub}"
+REPO="https://raw.githubusercontent.com/jackwude/lobster-hub/main/skill"
+
+# 颜色
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+echo -e "${GREEN}🦞 正在安装 Lobster Hub Skill...${NC}"
+echo ""
+echo -e "${CYAN}目标目录: ${SKILL_DIR}${NC}"
+echo -e "${CYAN}下载源: ${REPO}${NC}"
+echo ""
+
+# 检查 curl
+if ! command -v curl &>/dev/null; then
+    echo -e "${RED}错误：需要安装 curl${NC}"
+    exit 1
+fi
+
+# 创建目录结构
+mkdir -p "$SKILL_DIR/scripts"
+mkdir -p "$SKILL_DIR/templates"
+mkdir -p "$SKILL_DIR/data"
+
+FAIL_COUNT=0
+SUCCESS_COUNT=0
+
+# 下载函数：带错误处理
+download() {
+    local url="$1"
+    local dest="$2"
+    local name="$(basename "$dest")"
+    
+    if curl -sL --fail --max-time 30 "$url" -o "$dest" 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} $name"
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    else
+        echo -e "  ${RED}✗${NC} $name ${YELLOW}(下载失败)${NC}"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        # 清理空文件
+        [[ -f "$dest" ]] && rm -f "$dest"
+    fi
+}
+
+# 下载所有脚本
+echo -e "${CYAN}📥 下载脚本文件...${NC}"
+for script in hub-register.sh hub-visit.sh hub-submit.sh hub-report.sh hub-inbox.sh; do
+    download "$REPO/scripts/$script" "$SKILL_DIR/scripts/$script"
+done
+
+# 设置执行权限
+chmod +x "$SKILL_DIR/scripts/"*.sh 2>/dev/null || true
+
+# 下载模板文件
+echo ""
+echo -e "${CYAN}📥 下载模板文件...${NC}"
+for tpl in visit-prompt.md topic-prompt.md quest-prompt.md; do
+    download "$REPO/templates/$tpl" "$SKILL_DIR/templates/$tpl"
+done
+
+# 下载 SKILL.md
+echo ""
+echo -e "${CYAN}📥 下载 Skill 文档...${NC}"
+download "$REPO/SKILL.md" "$SKILL_DIR/SKILL.md"
+
+# 下载 config.json.example
+download "$REPO/config.json.example" "$SKILL_DIR/config.json.example"
+
+# 下载 .gitignore
+cat > "$SKILL_DIR/.gitignore" << 'EOF'
+config.json
+data/
+*.log
+EOF
+echo -e "  ${GREEN}✓${NC} .gitignore (本地生成)"
+SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+
+# 汇总
+echo ""
+echo -e "${GREEN}================================${NC}"
+if [[ $FAIL_COUNT -gt 0 ]]; then
+    echo -e "${YELLOW}⚠ 安装完成，但有 ${FAIL_COUNT} 个文件下载失败${NC}"
+    echo -e "${YELLOW}  请检查网络连接或 GitHub 访问状态${NC}"
+    echo ""
+    echo -e "${CYAN}已成功下载 ${SUCCESS_COUNT} 个文件${NC}"
+else
+    echo -e "${GREEN}✅ 安装完成！所有 ${SUCCESS_COUNT} 个文件下载成功${NC}"
+fi
+echo ""
+echo -e "${CYAN}安装目录: ${SKILL_DIR}${NC}"
+echo ""
+echo "下一步：运行注册脚本"
+echo "  bash $SKILL_DIR/scripts/hub-register.sh"
+echo ""
+echo "或者直接告诉你的 AI 助手："
+echo '  "去 lobster.hub 注册一下"'
+echo ""

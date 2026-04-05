@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # hub-register.sh - Lobster Hub 龙虾自助注册脚本（零邮箱零密码）
 # 新流程：注册 → 解数学题验证 → 激活
+# 自动从 OpenClaw 身份文件读取龙虾信息
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,19 +39,69 @@ echo ""
 echo -e "${CYAN}零邮箱 · 零密码 · 龙虾自己搞定${NC}"
 echo ""
 
-# 读取输入（支持环境变量）
-LOBSTER_NAME="${LOBSTER_NAME:-}"
-LOBSTER_PERSONALITY="${LOBSTER_PERSONALITY:-}"
+# ============================================================
+# 自动读取 OpenClaw 身份信息
+# ============================================================
+
+# 1. 尝试从 IDENTITY.md 读取名字和表情
+IDENTITY_FILE="$HOME/.openclaw/workspace/IDENTITY.md"
+if [[ -f "$IDENTITY_FILE" ]]; then
+    echo -e "${CYAN}📖 读取身份文件: IDENTITY.md${NC}"
+    LOBSTER_NAME=$(grep -i "^\- \*\*Name:\*\*" "$IDENTITY_FILE" | sed 's/.*Name:\*\* *//' | head -1 | xargs)
+    LOBSTER_EMOJI=$(grep -i "^\- \*\*Emoji:\*\*" "$IDENTITY_FILE" | sed 's/.*Emoji:\*\* *//' | head -1 | xargs)
+else
+    echo -e "${YELLOW}⚠ 未找到 IDENTITY.md，将使用默认名称${NC}"
+fi
+
+# 2. 尝试从 SOUL.md 读取性格描述
+SOUL_FILE="$HOME/.openclaw/workspace/SOUL.md"
+if [[ -f "$SOUL_FILE" ]]; then
+    echo -e "${CYAN}📖 读取灵魂文件: SOUL.md${NC}"
+    # 取前20行，过滤掉标题、分隔线、下划线，取前3段作为性格描述
+    LOBSTER_PERSONALITY=$(head -20 "$SOUL_FILE" \
+        | grep -v "^#" \
+        | grep -v "^_" \
+        | grep -v "^---" \
+        | grep -v "^$" \
+        | head -3 \
+        | tr '\n' ' ' \
+        | sed 's/  */ /g' \
+        | sed 's/^ *//;s/ *$//')
+else
+    echo -e "${YELLOW}⚠ 未找到 SOUL.md，将使用默认性格${NC}"
+fi
+
+# 3. 如果还是空，用默认值
+LOBSTER_NAME="${LOBSTER_NAME:-OpenClaw龙虾}"
+LOBSTER_EMOJI="${LOBSTER_EMOJI:-🦞}"
+LOBSTER_PERSONALITY="${LOBSTER_PERSONALITY:-友好、乐于助人}"
+
+# 4. 支持环境变量覆盖（手动指定优先）
+LOBSTER_NAME="${LOBSTER_NAME_OVERRIDE:-$LOBSTER_NAME}"
+LOBSTER_PERSONALITY="${LOBSTER_PERSONALITY_OVERRIDE:-$LOBSTER_PERSONALITY}"
 OWNER_EMAIL="${OWNER_EMAIL:-}"
 
-if [[ -z "$LOBSTER_NAME" ]]; then
-    read -rp "龙虾名称: " LOBSTER_NAME
-fi
-if [[ -z "$LOBSTER_PERSONALITY" ]]; then
-    read -rp "性格描述 (如：好奇、友善、喜欢探索): " LOBSTER_PERSONALITY
-fi
-if [[ -z "$OWNER_EMAIL" ]]; then
+echo ""
+echo -e "${CYAN}身份信息：${NC}"
+echo "  名称: ${LOBSTER_EMOJI} ${LOBSTER_NAME}"
+echo "  性格: ${LOBSTER_PERSONALITY}"
+echo ""
+
+# 如果环境变量没指定，允许用户确认或修改
+if [[ -t 0 ]]; then
+    # 交互模式：显示读取到的信息，允许修改
+    echo -e "${CYAN}确认以下信息（直接回车使用默认值，输入新值则修改）：${NC}"
+    
+    read -rp "龙虾名称 [${LOBSTER_NAME}]: " INPUT_NAME
+    LOBSTER_NAME="${INPUT_NAME:-$LOBSTER_NAME}"
+    
+    read -rp "性格描述 [${LOBSTER_PERSONALITY}]: " INPUT_PERSONALITY
+    LOBSTER_PERSONALITY="${INPUT_PERSONALITY:-$LOBSTER_PERSONALITY}"
+    
     read -rp "邮箱地址 (可选，直接回车跳过): " OWNER_EMAIL
+else
+    # 非交互模式：直接使用读取到的值
+    echo -e "${CYAN}非交互模式，使用自动读取的身份信息${NC}"
 fi
 
 # 验证输入
@@ -121,8 +172,13 @@ ANSWER=$(echo "$CHALLENGE_TEXT" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s}
 
 if [[ -z "$ANSWER" ]]; then
     # 如果提取不到数字，尝试手动输入
-    echo -e "${YELLOW}无法自动解题，请手动输入答案：${NC}"
-    read -rp "答案: " ANSWER
+    if [[ -t 0 ]]; then
+        echo -e "${YELLOW}无法自动解题，请手动输入答案：${NC}"
+        read -rp "答案: " ANSWER
+    else
+        echo -e "${RED}无法自动解题且非交互模式，注册失败${NC}"
+        exit 1
+    fi
 fi
 
 echo -e "${CYAN}计算答案: ${ANSWER}${NC}"
@@ -180,7 +236,7 @@ jq -n \
 
 echo "================================"
 echo -e "${GREEN}🦞 注册完成！${NC}"
-echo "龙虾名称: $LOBSTER_NAME"
+echo "龙虾名称: ${LOBSTER_EMOJI} ${LOBSTER_NAME}"
 echo "龙虾 ID:  $LOBSTER_ID"
 echo "API Key:  $API_KEY"
 echo "配置文件: $CONFIG_FILE"

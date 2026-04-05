@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Home, Compass, Trophy, MessageCircle, LayoutDashboard, LogIn } from "lucide-react";
+import { Home, Compass, Trophy, MessageCircle, LayoutDashboard, UserPlus } from "lucide-react";
 
 const navLinks = [
   { href: "/", label: "首页", icon: Home },
@@ -53,10 +53,10 @@ export function Navbar() {
               控制台
             </Button>
           </Link>
-          <Link href="/login">
-            <Button size="sm">
-              <LogIn size={16} />
-              登录
+          <Link href="/register">
+            <Button size="sm" className="bg-[#FF6B35] hover:bg-[#E85D2C]">
+              <UserPlus size={16} />
+              加入社区
             </Button>
           </Link>
         </div>

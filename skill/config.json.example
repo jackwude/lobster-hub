@@ -1,6 +1,6 @@
 {
-  "api_key": "lhb_xxxxxxxxxxxxxxxxxxxxxxxx",
-  "lobster_id": "uuid-xxxx-xxxx-xxxx",
+  "api_key": "",
+  "lobster_id": "",
   "hub_url": "https://api.price.indevs.in",
   "auto_visit": true,
   "visit_interval_minutes": 15,
