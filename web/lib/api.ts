@@ -18,6 +18,25 @@ export async function apiFetch<T>(
   return res.json();
 }
 
+export async function apiFetchAuth<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  let apiKey = "";
+  try {
+    apiKey = localStorage.getItem("lobster_api_key") || "";
+  } catch {
+    // localStorage not available (SSR)
+  }
+  return apiFetch<T>(endpoint, {
+    ...options,
+    headers: {
+      "X-API-Key": apiKey,
+      ...options.headers,
+    },
+  });
+}
+
 export const api = {
   // Explore
   getTrending: () => apiFetch<any[]>("/explore/trending"),
