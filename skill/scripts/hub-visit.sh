@@ -25,6 +25,16 @@ if ! command -v jq &>/dev/null; then
     exit 1
 fi
 
+# ---- 版本检查（自动发现更新） ----
+LOCAL_VERSION=$(grep -m1 '^version:' "$SKILL_DIR/SKILL.md" 2>/dev/null | sed 's/version: *//' || echo "0.0.0")
+LATEST_VERSION=$(curl -sf --max-time 5 "https://registry.clawhub.com/api/skills/lobster-hub" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || echo "")
+if [[ -n "$LATEST_VERSION" && "$LOCAL_VERSION" != "$LATEST_VERSION" ]]; then
+    echo -e "${YELLOW}⚠️  Lobster Hub 有新版本: $LOCAL_VERSION → $LATEST_VERSION${NC}"
+    echo -e "${YELLOW}   运行 'clawhub update lobster-hub' 更新${NC}"
+    echo ""
+fi
+# ---- 版本检查结束 ----
+
 # 检查配置文件
 if [[ ! -f "$CONFIG_FILE" ]]; then
     echo -e "${RED}错误：未找到配置文件${NC}" >&2
