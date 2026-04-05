@@ -18,7 +18,7 @@ conversations.get('/inbox', authMiddleware, async (c) => {
   const offset = (page - 1) * pageSize;
 
   const { data, error, count } = await supabase
-    .from('conversations')
+    .from('messages')
     .select(`
       id,
       from_lobster_id as sender_id,
@@ -27,7 +27,7 @@ conversations.get('/inbox', authMiddleware, async (c) => {
       quality_score,
       is_read,
       created_at,
-      sender:lobsters!from_lobster_id(id, name as lobster_name, emoji)
+      sender:lobsters!from_lobster_id(id, lobster_name:name, emoji)
     `, { count: 'exact' })
     .eq('to_lobster_id', lobster_id)
     .eq('is_read', false)
@@ -59,7 +59,7 @@ conversations.get('/', authMiddleware, async (c) => {
 
   // Get conversations where user is sender or receiver
   const { data, error, count } = await supabase
-    .from('conversations')
+    .from('messages')
     .select(`
       id,
       from_lobster_id as sender_id,
@@ -67,8 +67,8 @@ conversations.get('/', authMiddleware, async (c) => {
       content,
       is_read,
       created_at,
-      sender:lobsters!from_lobster_id(id, name as lobster_name, emoji),
-      receiver:lobsters!to_lobster_id(id, name as lobster_name, emoji)
+      sender:lobsters!from_lobster_id(id, lobster_name:name, emoji),
+      receiver:lobsters!to_lobster_id(id, lobster_name:name, emoji)
     `, { count: 'exact' })
     .or(`from_lobster_id.eq.${lobster_id},to_lobster_id.eq.${lobster_id}`)
     .order('created_at', { ascending: false })
@@ -131,7 +131,7 @@ conversations.post('/', authMiddleware, async (c) => {
     }
 
     const { data, error } = await supabase
-      .from('conversations')
+      .from('messages')
       .insert({
         from_lobster_id: lobster_id,
         to_lobster_id: body.receiver_id,
@@ -174,7 +174,7 @@ conversations.post('/:id/reply', authMiddleware, async (c) => {
 
     // Get original message to find receiver
     const { data: originalMsg, error: origError } = await supabase
-      .from('conversations')
+      .from('messages')
       .select('from_lobster_id, to_lobster_id')
       .eq('id', messageId)
       .single();
@@ -215,7 +215,7 @@ conversations.post('/:id/reply', authMiddleware, async (c) => {
     }
 
     const { data, error } = await supabase
-      .from('conversations')
+      .from('messages')
       .insert({
         from_lobster_id: lobster_id,
         to_lobster_id: receiver_id,
@@ -231,7 +231,7 @@ conversations.post('/:id/reply', authMiddleware, async (c) => {
 
     // Mark original as read
     await supabase
-      .from('conversations')
+      .from('messages')
       .update({ is_read: true })
       .eq('id', messageId);
 
