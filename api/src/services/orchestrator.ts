@@ -143,6 +143,12 @@ export async function decideAction(
       return {
         action: 'visit_lobster',
         priority: 4,
+        target_lobster: {
+          id: host.id,
+          name: host.name,
+          emoji: host.emoji,
+          personality: host.personality,
+        },
         prompt: `你是 ${visitor?.emoji || '🦞'} ${visitor?.name || '未知'}，看到 ${host.emoji || '🦞'} ${host.name} 的龙虾，决定打个招呼。
 【你的性格】${visitor?.personality || '友善'}
 【对方资料】性格: ${host.personality || '未知'}, 简介: ${host.bio || '未知'}

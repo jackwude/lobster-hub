@@ -21,16 +21,16 @@ conversations.get('/inbox', authMiddleware, async (c) => {
     .from('messages')
     .select(`
       id,
-      from_lobster_id as sender_id,
-      to_lobster_id as receiver_id,
+      from_lobster_id,
+      to_lobster_id,
       content,
       quality_score,
-      is_read,
+      
       created_at,
-      sender:lobsters!from_lobster_id(id, lobster_name:name, emoji)
+      sender:lobsters!from_lobster_id(id, name, emoji)
     `, { count: 'exact' })
     .eq('to_lobster_id', lobster_id)
-    .eq('is_read', false)
+    .neq('status', 'read')
     .order('created_at', { ascending: true })
     .range(offset, offset + pageSize - 1);
 
@@ -62,13 +62,13 @@ conversations.get('/', authMiddleware, async (c) => {
     .from('messages')
     .select(`
       id,
-      from_lobster_id as sender_id,
-      to_lobster_id as receiver_id,
+      from_lobster_id,
+      to_lobster_id,
       content,
-      is_read,
+      
       created_at,
-      sender:lobsters!from_lobster_id(id, lobster_name:name, emoji),
-      receiver:lobsters!to_lobster_id(id, lobster_name:name, emoji)
+      sender:lobsters!from_lobster_id(id, name, emoji),
+      receiver:lobsters!to_lobster_id(id, name, emoji)
     `, { count: 'exact' })
     .or(`from_lobster_id.eq.${lobster_id},to_lobster_id.eq.${lobster_id}`)
     .order('created_at', { ascending: false })
@@ -97,9 +97,13 @@ conversations.post('/', authMiddleware, async (c) => {
   try {
     const body = await c.req.json<SendMessageRequest>();
 
-    if (!body.receiver_id || !body.content) {
+    // 兼容两种字段名
+    const receiverId = (body as any).receiver_id || (body as any).to_lobster_id;
+    const content = body.content;
+
+    if (!receiverId || !content) {
       return c.json(
-        { error: 'bad_request', message: 'receiver_id and content are required' },
+        { error: 'bad_request', message: 'receiver_id (or to_lobster_id) and content are required' },
         400
       );
     }
@@ -134,11 +138,11 @@ conversations.post('/', authMiddleware, async (c) => {
       .from('messages')
       .insert({
         from_lobster_id: lobster_id,
-        to_lobster_id: body.receiver_id,
+        to_lobster_id: receiverId,
         content: body.content,
         quality_score: quality.score,
       })
-      .select('id, from_lobster_id as sender_id, to_lobster_id as receiver_id, content, quality_score, is_read, created_at')
+      .select('id, from_lobster_id, to_lobster_id, content, quality_score, created_at')
       .single();
 
     if (error) {
@@ -150,7 +154,7 @@ conversations.post('/', authMiddleware, async (c) => {
       lobster_id,
       action_type: 'message',
       content: `发送了一条消息`,
-      target_id: body.receiver_id,
+      target_id: receiverId,
     });
 
     return c.json(data, 201);
@@ -222,7 +226,7 @@ conversations.post('/:id/reply', authMiddleware, async (c) => {
         content: body.content,
         quality_score: quality.score,
       })
-      .select('id, from_lobster_id as sender_id, to_lobster_id as receiver_id, content, quality_score, is_read, created_at')
+      .select('id, from_lobster_id, to_lobster_id, content, quality_score, created_at')
       .single();
 
     if (error) {
@@ -232,7 +236,7 @@ conversations.post('/:id/reply', authMiddleware, async (c) => {
     // Mark original as read
     await supabase
       .from('messages')
-      .update({ is_read: true })
+      .update({ status: 'read' })
       .eq('id', messageId);
 
     // Record timeline entry

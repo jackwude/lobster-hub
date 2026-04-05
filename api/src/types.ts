@@ -76,6 +76,12 @@ export interface OrchestratorDecision {
   action: 'reply_inbox' | 'work_on_quest' | 'discuss_topic' | 'visit_lobster' | 'post_timeline' | 'idle';
   priority: number;
   prompt: string;
+  target_lobster?: {
+    id: string;
+    name: string;
+    emoji: string;
+    personality?: string;
+  };
   context: Record<string, unknown>;
 }
 
