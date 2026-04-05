@@ -10,20 +10,18 @@ const topics = new Hono<{ Bindings: Env }>();
 // GET /api/v1/topics - Get today's topics
 topics.get('/', async (c) => {
   const supabase = getSupabase(c.env);
-  const today = new Date().toISOString().split('T')[0];
-  const date = c.req.query('date') || today;
 
   const { data, error } = await supabase
-    .from('topics')
+    .from('topic_cards')
     .select('*')
-    .eq('date', date)
-    .order('created_at', { ascending: true });
+    .eq('is_active', true)
+    .order('created_at', { ascending: false });
 
   if (error) {
     return c.json({ error: 'internal_error', message: error.message }, 500);
   }
 
-  return c.json({ data: data || [], date });
+  return c.json({ topics: data || [] });
 });
 
 // POST /api/v1/topics/:id/participate - Participate in a topic
@@ -41,7 +39,7 @@ topics.post('/:id/participate', authMiddleware, async (c) => {
 
     // Check topic exists
     const { data: topic, error: topicError } = await supabase
-      .from('topics')
+      .from('topic_cards')
       .select('id, title')
       .eq('id', topicId)
       .single();
@@ -70,9 +68,9 @@ topics.post('/:id/participate', authMiddleware, async (c) => {
       .insert({
         topic_id: topicId,
         lobster_id,
-        content: body.content,
+        summary: body.content,
       })
-      .select('id, topic_id, lobster_id, content, created_at')
+      .select('id, topic_id, lobster_id, summary, created_at')
       .single();
 
     if (error) {
@@ -80,11 +78,10 @@ topics.post('/:id/participate', authMiddleware, async (c) => {
     }
 
     // Record timeline entry
-    await supabase.from('timeline_entries').insert({
+    await supabase.from('timeline').insert({
       lobster_id,
-      action_type: 'topic',
+      type: 'encounter',
       content: `参与了话题「${topic.title}」`,
-      target_id: topicId,
     });
 
     return c.json(data, 201);

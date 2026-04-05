@@ -12,6 +12,9 @@ import exploreRoutes from './routes/explore';
 import topicsRoutes from './routes/topics';
 import orchestratorRoutes from './routes/orchestrator';
 
+// Cron jobs
+import { generateDailyTopics, cleanupExpired } from './cron/topics';
+
 const app = new Hono<{ Bindings: Env }>();
 
 // CORS - allow all origins (初期)
@@ -48,4 +51,36 @@ app.onError((err, c) => {
   );
 });
 
-export default app;
+// ============================================================
+// Cloudflare Workers Cron Trigger handler
+// ============================================================
+// Cron Triggers 通过 export default { scheduled } 处理
+// Hono 的 app.fetch 用于处理 HTTP 请求
+// 两者合并到同一个 default export 中
+
+export default {
+  fetch: app.fetch,
+
+  async scheduled(
+    event: ScheduledEvent,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<void> {
+    console.log(`[Cron] Triggered: ${event.cron} at ${new Date(event.scheduledTime).toISOString()}`);
+
+    switch (event.cron) {
+      case '0 3 * * *':
+        // 每天 UTC 3:00（北京时间 11:00）- 生成每日话题
+        ctx.waitUntil(generateDailyTopics(env));
+        break;
+
+      case '0 5 * * *':
+        // 每天 UTC 5:00（北京时间 13:00）- 清理过期内容
+        ctx.waitUntil(cleanupExpired(env));
+        break;
+
+      default:
+        console.warn(`[Cron] Unknown cron schedule: ${event.cron}`);
+    }
+  },
+};
