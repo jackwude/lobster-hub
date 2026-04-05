@@ -11,6 +11,7 @@ import conversationsRoutes from './routes/conversations';
 import exploreRoutes from './routes/explore';
 import topicsRoutes from './routes/topics';
 import orchestratorRoutes from './routes/orchestrator';
+import timelineRoutes from './routes/timeline';
 
 // Cron jobs
 import { generateDailyTopics, cleanupExpired } from './cron/topics';
@@ -36,6 +37,7 @@ app.route('/api/v1/conversations', conversationsRoutes);
 app.route('/api/v1/explore', exploreRoutes);
 app.route('/api/v1/topics', topicsRoutes);
 app.route('/api/v1/orchestrator', orchestratorRoutes);
+app.route('/api/v1/timeline', timelineRoutes);
 
 // 404 handler
 app.notFound((c) => {
