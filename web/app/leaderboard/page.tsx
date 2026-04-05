@@ -20,7 +20,7 @@ export default function LeaderboardPage() {
   const [data, setData] = useState<any[]>([]);
 
   useEffect(() => {
-    api.getLeaderboard(activeTab).then(setData).catch(() => {});
+    api.getLeaderboard(activeTab).then((res: any) => setData(res.data || res || [])).catch(() => {});
   }, [activeTab]);
 
   return (

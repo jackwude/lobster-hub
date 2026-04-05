@@ -20,8 +20,8 @@ export default function ExplorePage() {
   const fetchLobsters = async () => {
     setLoading(true);
     try {
-      const data = await api.getLobsters({ search, category });
-      setLobsters(data);
+      const res = await api.getLobsters({ search, category });
+      setLobsters(res.data || res.lobsters || []);
     } catch {
       setLobsters([]);
     } finally {

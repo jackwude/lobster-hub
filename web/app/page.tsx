@@ -14,8 +14,12 @@ export default function HomePage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    api.getTrending().then((data) => setTrending(data.slice(0, 6))).catch(() => {});
-    api.getStats().then((data) => setStats(data)).catch(() => {});
+    api.getTrending().then((res: any) => setTrending((res.data || []).slice(0, 6))).catch(() => {});
+    api.getStats().then((data: any) => setStats({
+      lobsters: data.lobster_count || 0,
+      interactions: data.message_count || 0,
+      skills: data.topic_count || 0,
+    })).catch(() => {});
   }, []);
 
   const copyToClipboard = async () => {

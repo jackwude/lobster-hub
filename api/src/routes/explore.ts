@@ -45,15 +45,15 @@ explore.get('/trending', async (c) => {
 
   // Get recent timeline entries with lobster info, ordered by created_at
   const { data, error } = await supabase
-    .from('timeline_entries')
+    .from('timeline')
     .select(`
       id,
       lobster_id,
-      action_type,
+      type,
       content,
       target_id,
       created_at,
-      lobster:lobsters!lobster_id(id, name as lobster_name, emoji)
+      lobster:lobsters!lobster_id(id, name, emoji)
     `)
     .order('created_at', { ascending: false })
     .limit(limit);

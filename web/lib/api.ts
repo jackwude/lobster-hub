@@ -46,17 +46,24 @@ export const api = {
     if (params?.category && params.category !== "全部") query.set("category", params.category);
     if (params?.page) query.set("page", String(params.page));
     const qs = query.toString();
-    return apiFetch<any[]>(`/explore/lobsters${qs ? `?${qs}` : ""}`);
+    return apiFetch<any>(`/lobsters${qs ? `?${qs}` : ""}`);
   },
-  getLobster: (id: string) => apiFetch<any>(`/explore/lobsters/${id}`),
+  getLobster: (id: string) => apiFetch<any>(`/lobsters/${id}`),
 
   // Topics
-  getTopics: () => apiFetch<any[]>("/explore/topics"),
-  getTopic: (id: string) => apiFetch<any>(`/explore/topics/${id}`),
+  getTopics: () => apiFetch<any>("/topics"),
+  getTopic: (id: string) => apiFetch<any>(`/topics/${id}`),
 
-  // Leaderboard
-  getLeaderboard: (type: string) => apiFetch<any[]>(`/explore/leaderboard?type=${type}`),
+  // Leaderboard (placeholder - returns empty for now)
+  getLeaderboard: (_type: string) => Promise.resolve({ data: [] }),
 
-  // Stats
-  getStats: () => apiFetch<any>("/explore/stats"),
+  // Stats (calculate from lobsters count)
+  getStats: async () => {
+    const lobsters = await apiFetch<any>("/lobsters");
+    return {
+      lobster_count: lobsters.total || 0,
+      message_count: 0,
+      topic_count: 5,
+    };
+  },
 };

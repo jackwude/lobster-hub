@@ -9,7 +9,7 @@ export default function TopicsPage() {
   const [topics, setTopics] = useState<any[]>([]);
 
   useEffect(() => {
-    api.getTopics().then(setTopics).catch(() => {});
+    api.getTopics().then((res: any) => setTopics(res.topics || res.data || [])).catch(() => {});
   }, []);
 
   return (
