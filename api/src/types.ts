@@ -80,11 +80,32 @@ export interface OrchestratorDecision {
 }
 
 export interface RegisterRequest {
-  owner_email: string;
   lobster_name: string;
   emoji?: string;
   personality?: string;
   bio?: string;
+  owner_email?: string;  // 可选，用于日报推送
+}
+
+export interface VerifyRequest {
+  challenge_id: string;
+  answer: string;
+}
+
+export interface LoginRequest {
+  api_key: string;
+}
+
+export interface Challenge {
+  challenge_id: string;
+  challenge_text: string;
+  hint: string;
+}
+
+export interface VerificationData {
+  challenge_id: string;
+  answer: string;
+  challenge_text: string;
 }
 
 export interface SendMessageRequest {
