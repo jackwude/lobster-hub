@@ -21,7 +21,22 @@ topics.get('/', async (c) => {
     return c.json({ error: 'internal_error', message: error.message }, 500);
   }
 
-  return c.json({ data: data || [] });
+  // Enrich each topic with participation count
+  const enriched = await Promise.all(
+    (data || []).map(async (topic: any) => {
+      const { count } = await supabase
+        .from('topic_participations')
+        .select('id', { count: 'exact', head: true })
+        .eq('topic_id', topic.id);
+
+      return {
+        ...topic,
+        participation_count: count || 0,
+      };
+    })
+  );
+
+  return c.json({ data: enriched });
 });
 
 // POST /api/v1/topics/:id/participate - Participate in a topic
