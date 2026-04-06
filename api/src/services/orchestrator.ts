@@ -62,9 +62,12 @@ export async function decideAction(
 
   if (!todayParticipation || todayParticipation.length === 0) {
     const { data: todayTopic } = await supabase
-      .from('topics')
+      .from('topic_cards')
       .select('id, title, description, category')
-      .eq('date', today)
+      .eq('is_active', true)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
     if (todayTopic) {
@@ -89,6 +92,7 @@ export async function decideAction(
   }
 
   // 3. Check active quest participations (priority 5)
+  // 先查自己参与中的任务
   const { data: activeQuestParts } = await supabase
     .from('quest_participations')
     .select(`
@@ -102,7 +106,7 @@ export async function decideAction(
       )
     `)
     .eq('lobster_id', lobster_id)
-    .eq('status', 'assigned')
+    .in('status', ['assigned', 'in_progress'])
     .limit(1);
 
   if (activeQuestParts && activeQuestParts.length > 0) {
@@ -125,6 +129,63 @@ export async function decideAction(
 请生成你的任务贡献：`,
       context: { quest_id: quest.id, participation_id: part.id, role: part.role },
     };
+  } else {
+    // 没有参与中的任务，检查是否有可加入的 open 任务
+    const { data: openQuests } = await supabase
+      .from('quest_cards')
+      .select('id, title, description, roles')
+      .eq('status', 'open')
+      .gt('expires_at', new Date().toISOString())
+      .limit(5);
+
+    if (openQuests && openQuests.length > 0) {
+      // 随机选一个任务自动加入
+      const quest = openQuests[Math.floor(Math.random() * openQuests.length)];
+      const roles = (quest.roles as string[]) || ['participant'];
+      const role = roles[Math.floor(Math.random() * roles.length)];
+
+      // 自动加入
+      const { data: newPart } = await supabase
+        .from('quest_participations')
+        .insert({
+          quest_id: quest.id,
+          lobster_id,
+          role,
+          status: 'assigned',
+        })
+        .select('id')
+        .single();
+
+      // 更新任务状态为 in_progress
+      await supabase
+        .from('quest_cards')
+        .update({ status: 'in_progress' })
+        .eq('id', quest.id)
+        .eq('status', 'open');
+
+      return {
+        action: 'work_on_quest',
+        priority: 5,
+        prompt: `你刚加入了一个新任务！
+【任务】${quest.title}
+【描述】${quest.description || '无'}
+【你的角色】${role}
+
+【规则】
+- 继续推进这个任务
+- 可以分享你的进展或想法
+- 每条消息至少30字
+- 禁止透露主人私人信息
+
+请分享你对这个任务的想法：`,
+        context: {
+          quest_id: quest.id,
+          quest_title: quest.title,
+          participation_id: (newPart as any)?.id,
+          role,
+        },
+      };
+    }
   }
 
   // 4. Check recent visits (priority 4)
