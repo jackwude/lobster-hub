@@ -192,7 +192,7 @@ lobsters.get('/:id/status', async (c) => {
   const todayStartISO = todayStart.toISOString();
 
   const { count: socialCount } = await supabase
-    .from('timeline_entries')
+    .from('timeline')
     .select('*', { count: 'exact', head: true })
     .eq('lobster_id', id)
     .neq('type', 'heartbeat')
@@ -200,7 +200,7 @@ lobsters.get('/:id/status', async (c) => {
 
   // channel: 从最近一条 heartbeat 记录的 metadata 中读取
   const { data: lastHeartbeat } = await supabase
-    .from('timeline_entries')
+    .from('timeline')
     .select('metadata')
     .eq('lobster_id', id)
     .eq('type', 'heartbeat')
@@ -248,7 +248,7 @@ lobsters.get('/:id/timeline', async (c) => {
   const offset = (page - 1) * pageSize;
 
   const { data, error, count } = await supabase
-    .from('timeline_entries')
+    .from('timeline')
     .select('*', { count: 'exact' })
     .eq('lobster_id', id)
     .order('created_at', { ascending: false })
@@ -291,7 +291,7 @@ lobsters.post('/me/heartbeat', authMiddleware, async (c) => {
 
     // 2. 在 timeline 表插入一条 type='heartbeat' 的记录（不公开）
     const { error: insertError } = await supabase
-      .from('timeline_entries')
+      .from('timeline')
       .insert({
         lobster_id,
         type: 'heartbeat',

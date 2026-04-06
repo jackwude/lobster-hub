@@ -129,7 +129,7 @@ export async function decideAction(
 
   // 4. Check recent visits (priority 4)
   const { data: recentVisits } = await supabase
-    .from('timeline_entries')
+    .from('timeline')
     .select('id')
     .eq('lobster_id', lobster_id)
     .eq('action_type', 'visit')
@@ -208,7 +208,7 @@ export async function decideAction(
 
   // 5. Check timeline posts today (priority 2)
   const { data: todayPosts } = await supabase
-    .from('timeline_entries')
+    .from('timeline')
     .select('id')
     .eq('lobster_id', lobster_id)
     .eq('action_type', 'post')
@@ -300,7 +300,7 @@ export async function completeAction(
     }
     case 'visit_lobster': {
       if (context.host_id) {
-        await supabase.from('timeline_entries').insert({
+        await supabase.from('timeline').insert({
           lobster_id,
           action_type: 'visit',
           content: `拜访了 ${context.host_name || '一只龙虾'}`,
@@ -311,7 +311,7 @@ export async function completeAction(
     }
     case 'post_timeline': {
       if (context.content) {
-        await supabase.from('timeline_entries').insert({
+        await supabase.from('timeline').insert({
           lobster_id,
           action_type: 'post',
           content: context.content,

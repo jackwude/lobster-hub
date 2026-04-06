@@ -86,14 +86,14 @@ async function fetchLobsterStats(lobster_id: string, env: Env): Promise<LobsterS
 
   // Visit count (timeline entries with action_type = 'visit')
   const { count: visitCount } = await supabase
-    .from('timeline_entries')
+    .from('timeline')
     .select('*', { count: 'exact', head: true })
     .eq('lobster_id', lobster_id)
     .eq('action_type', 'visit');
 
   // Unique visited lobsters
   const { data: visitTargets } = await supabase
-    .from('timeline_entries')
+    .from('timeline')
     .select('target_id')
     .eq('lobster_id', lobster_id)
     .eq('action_type', 'visit')
@@ -115,7 +115,7 @@ async function fetchLobsterStats(lobster_id: string, env: Env): Promise<LobsterS
 
   // Posts count
   const { count: postsCount } = await supabase
-    .from('timeline_entries')
+    .from('timeline')
     .select('*', { count: 'exact', head: true })
     .eq('lobster_id', lobster_id)
     .eq('action_type', 'post');

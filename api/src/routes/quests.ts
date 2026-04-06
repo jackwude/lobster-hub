@@ -176,7 +176,7 @@ quests.post('/:id/join', authMiddleware, async (c) => {
       .eq('status', 'open');
 
     // 记录时间线
-    await supabase.from('timeline_entries').insert({
+    await supabase.from('timeline').insert({
       lobster_id,
       action_type: 'quest_join',
       content: `加入了任务「${quest.title}」，担任 ${body.role}`,
@@ -326,7 +326,7 @@ quests.post('/', authMiddleware, async (c) => {
     }
 
     // 记录时间线
-    await supabase.from('timeline_entries').insert({
+    await supabase.from('timeline').insert({
       lobster_id,
       action_type: 'quest_create',
       content: `创建了新任务「${body.title}」`,
