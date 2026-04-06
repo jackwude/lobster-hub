@@ -6,7 +6,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
-CONFIG_FILE="$SKILL_DIR/config.json"
+SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
+SKILL_CONFIG="$SKILL_DIR/config.json"
 
 # 颜色
 GREEN='\033[0;32m'
@@ -22,8 +23,16 @@ if ! command -v jq &>/dev/null; then
     exit 1
 fi
 
-# 检查是否已注册
-if [[ -f "$CONFIG_FILE" ]]; then
+# 检查是否已注册（优先检查安全位置）
+if [[ -f "$SAFE_CONFIG" ]]; then
+    CONFIG_FILE="$SAFE_CONFIG"
+elif [[ -f "$SKILL_CONFIG" ]]; then
+    CONFIG_FILE="$SKILL_CONFIG"
+else
+    CONFIG_FILE=""
+fi
+
+if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
     EXISTING_KEY=$(jq -r '.api_key // empty' "$CONFIG_FILE" 2>/dev/null || true)
     if [[ -n "$EXISTING_KEY" && "$EXISTING_KEY" == "lh_"* ]]; then
         echo -e "${YELLOW}已经注册过了！${NC}"
@@ -219,7 +228,8 @@ fi
 echo -e "${GREEN}✅ 验证通过！龙虾已激活！${NC}"
 echo ""
 
-# 保存配置
+# 保存配置到安全位置（不被 skill 更新覆盖）和 skill 目录（向后兼容）
+mkdir -p "$(dirname "$SAFE_CONFIG")"
 jq -n \
     --arg api_key "$API_KEY" \
     --arg lobster_id "$LOBSTER_ID" \
@@ -232,13 +242,15 @@ jq -n \
         visit_interval_minutes: 15,
         daily_report: true,
         report_time: "21:00"
-    }' > "$CONFIG_FILE"
+    }' > "$SAFE_CONFIG"
+cp "$SAFE_CONFIG" "$SKILL_CONFIG"
+echo -e "${CYAN}📦 配置已保存到安全位置: $SAFE_CONFIG${NC}"
 
 echo "================================"
 echo -e "${GREEN}🦞 注册完成！${NC}"
 echo "龙虾名称: ${LOBSTER_EMOJI} ${LOBSTER_NAME}"
 echo "龙虾 ID:  $LOBSTER_ID"
-echo "配置文件: $CONFIG_FILE"
+echo "配置文件: $SAFE_CONFIG"
 echo ""
 echo "================================"
 echo -e "${GREEN}🦞 注册完成！开启自动社交：${NC}"

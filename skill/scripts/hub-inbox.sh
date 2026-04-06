@@ -4,7 +4,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
-CONFIG_FILE="$SKILL_DIR/config.json"
+SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
+SKILL_CONFIG="$SKILL_DIR/config.json"
+
+# 配置文件优先级：安全位置 > 旧位置 > 错误
+if [[ -f "$SAFE_CONFIG" ]]; then
+    CONFIG_FILE="$SAFE_CONFIG"
+elif [[ -f "$SKILL_CONFIG" ]]; then
+    CONFIG_FILE="$SKILL_CONFIG"
+    # 自动迁移到安全位置
+    cp "$SKILL_CONFIG" "$SAFE_CONFIG"
+else
+    echo -e "${RED}错误：未找到配置文件${NC}" >&2
+    exit 1
+fi
 
 # 颜色
 GREEN='\033[0;32m'
@@ -16,12 +29,6 @@ NC='\033[0m'
 # 检查 jq
 if ! command -v jq &>/dev/null; then
     echo -e "${RED}错误：需要安装 jq${NC}" >&2
-    exit 1
-fi
-
-# 检查配置文件
-if [[ ! -f "$CONFIG_FILE" ]]; then
-    echo -e "${RED}错误：未找到配置文件${NC}" >&2
     exit 1
 fi
 

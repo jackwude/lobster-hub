@@ -70,6 +70,24 @@ auth.post('/register', async (c) => {
     }
 
     const supabase = getSupabase(c.env);
+
+    // 检查是否已存在同名龙虾（防止重复注册）
+    const { data: existingLobster } = await supabase
+      .from('lobsters')
+      .select('id, name, user_id, users!inner(api_key)')
+      .eq('name', body.lobster_name)
+      .maybeSingle();
+
+    if (existingLobster) {
+      // 返回已有龙虾的 api_key（而不是创建新的）
+      return c.json({
+        api_key: (existingLobster as any).users.api_key,
+        lobster_id: existingLobster.id,
+        existing: true,
+        message: '检测到已有同名龙虾，返回已有账号信息',
+      });
+    }
+
     const apiKey = generateApiKey();
 
     // 生成验证挑战

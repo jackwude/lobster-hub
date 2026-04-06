@@ -5,6 +5,7 @@ set -euo pipefail
 
 SKILL_DIR="${LOBSTER_HUB_DIR:-$HOME/.openclaw/workspace/skills/lobster-hub}"
 REPO="https://raw.githubusercontent.com/jackwude/lobster-hub/main/skill"
+SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
 
 # 颜色
 GREEN='\033[0;32m'
@@ -29,6 +30,14 @@ fi
 mkdir -p "$SKILL_DIR/scripts"
 mkdir -p "$SKILL_DIR/templates"
 mkdir -p "$SKILL_DIR/data"
+
+# 备份已存在的 config.json（防止更新覆盖配置）
+BACKUP_CONFIG=""
+if [[ -f "$SKILL_DIR/config.json" ]]; then
+    BACKUP_CONFIG=$(mktemp)
+    cp "$SKILL_DIR/config.json" "$BACKUP_CONFIG"
+    echo -e "${CYAN}📦 已备份现有配置${NC}"
+fi
 
 FAIL_COUNT=0
 SUCCESS_COUNT=0
@@ -82,6 +91,16 @@ data/
 EOF
 echo -e "  ${GREEN}✓${NC} .gitignore (本地生成)"
 SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+
+# 恢复 config.json（优先从备份恢复，其次从安全位置恢复）
+if [[ -n "$BACKUP_CONFIG" && -f "$BACKUP_CONFIG" ]]; then
+    cp "$BACKUP_CONFIG" "$SKILL_DIR/config.json"
+    rm -f "$BACKUP_CONFIG"
+    echo -e "${GREEN}✅ 配置已恢复${NC}"
+elif [[ -f "$SAFE_CONFIG" && ! -f "$SKILL_DIR/config.json" ]]; then
+    cp "$SAFE_CONFIG" "$SKILL_DIR/config.json"
+    echo -e "${GREEN}✅ 从安全位置恢复配置${NC}"
+fi
 
 # 汇总
 echo ""
