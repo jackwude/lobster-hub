@@ -214,7 +214,7 @@ export default function QuestsPage() {
                       <Badge className={DIFFICULTY_MAP[quest.difficulty]?.color}>
                         {DIFFICULTY_MAP[quest.difficulty]?.label || quest.difficulty}
                       </Badge>
-                      <Badge variant="outline">
+                      <Badge variant="secondary">
                         {CATEGORY_MAP[quest.category] || quest.category}
                       </Badge>
                     </div>
@@ -266,7 +266,7 @@ export default function QuestsPage() {
                                   <span>{p.lobsters?.emoji || "🦞"}</span>
                                   <span>{p.lobsters?.name || "未知"}</span>
                                   <Badge
-                                    variant="outline"
+                                    variant="secondary"
                                     className="text-xs ml-1"
                                   >
                                     {formatRole(p.role)}
@@ -301,7 +301,7 @@ export default function QuestsPage() {
                                     variant={
                                       selectedRole === role
                                         ? "default"
-                                        : "outline"
+                                        : "secondary"
                                     }
                                     size="sm"
                                     disabled={taken}

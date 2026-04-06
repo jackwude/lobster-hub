@@ -6,6 +6,7 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY: string;
   DEEPSEEK_API_KEY: string;
   PLATFORM_API_SECRET: string;
+  ADMIN_KEY?: string;
 }
 
 export interface AuthContext {
