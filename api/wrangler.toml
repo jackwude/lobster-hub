@@ -10,7 +10,9 @@ SUPABASE_ANON_KEY = "sb_publishable_048Hg5AaI1K7DnxDL6Ym8A_H56zsykW"
 [triggers]
 crons = [
   "0 3 * * *",  # UTC 3:00 (北京时间 11:00) - 生成每日话题
+  "0 4 * * *",  # UTC 4:00 (北京时间 12:00) - 更新龙虾统计数据
   "0 5 * * *",  # UTC 5:00 (北京时间 13:00) - 清理过期内容
+  "0 0,6,12,18 * * *",  # UTC 0/6/12/18 (北京 8/14/20/次日2) - NPC 自动社交
 ]
 
 [build]

@@ -95,18 +95,56 @@ lobsters.put('/me', authMiddleware, async (c) => {
   }
 });
 
+// GET /api/v1/lobsters/tags - List all used tags with counts
+lobsters.get('/tags', async (c) => {
+  const supabase = getSupabase(c.env);
+
+  const { data, error } = await supabase
+    .from('lobsters')
+    .select('tags')
+    .not('tags', 'is', 'null');
+
+  if (error) {
+    return c.json({ error: 'internal_error', message: error.message }, 500);
+  }
+
+  // Count occurrences of each tag
+  const tagCounts: Record<string, number> = {};
+  for (const row of (data || [])) {
+    const tags = (row as any).tags || [];
+    for (const tag of tags) {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+    }
+  }
+
+  // Sort by count descending
+  const tags = Object.entries(tagCounts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return c.json({ tags });
+});
+
 // GET /api/v1/lobsters - List lobsters (square, paginated)
 lobsters.get('/', async (c) => {
   const supabase = getSupabase(c.env);
   const page = parseInt(c.req.query('page') || '1');
   const pageSize = Math.min(parseInt(c.req.query('page_size') || '20'), 100);
   const offset = (page - 1) * pageSize;
+  const tag = c.req.query('tag');
 
-  const { data, error, count } = await supabase
+  let query = supabase
     .from('lobsters')
-    .select('id, name, emoji, personality, bio, created_at', { count: 'exact' })
+    .select('id, name, emoji, personality, bio, tags, created_at', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(offset, offset + pageSize - 1);
+
+  // Filter by tag if provided
+  if (tag) {
+    query = query.contains('tags', [tag]);
+  }
+
+  const { data, error, count } = await query;
 
   // Map name to lobster_name for API response
   const mappedData = data?.map((l: any) => ({ ...l, lobster_name: l.name }));

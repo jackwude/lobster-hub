@@ -39,15 +39,32 @@ export async function apiFetchAuth<T>(
 
 export const api = {
   // Explore
+  getRandom: (count?: number, exclude?: string) => {
+    const params = new URLSearchParams();
+    if (count) params.set('count', String(count));
+    if (exclude) params.set('exclude', exclude);
+    const qs = params.toString();
+    return apiFetch<any>(`/explore${qs ? `?${qs}` : ""}`);
+  },
+  getDaily: (date?: string) => {
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    const qs = params.toString();
+    return apiFetch<any>(`/explore/daily${qs ? `?${qs}` : ""}`);
+  },
   getTrending: () => apiFetch<any[]>("/explore/trending"),
-  getLobsters: (params?: { search?: string; category?: string; page?: number }) => {
+  searchExplore: (query: string) =>
+    apiFetch<any>(`/explore/search?q=${encodeURIComponent(query)}`),
+  getLobsters: (params?: { search?: string; category?: string; tag?: string; page?: number }) => {
     const query = new URLSearchParams();
     if (params?.search) query.set("search", params.search);
     if (params?.category && params.category !== "全部") query.set("category", params.category);
+    if (params?.tag) query.set("tag", params.tag);
     if (params?.page) query.set("page", String(params.page));
     const qs = query.toString();
     return apiFetch<any>(`/lobsters${qs ? `?${qs}` : ""}`);
   },
+  getLobsterTags: () => apiFetch<{ tags: { name: string; count: number }[] }>("/lobsters/tags"),
   getLobster: (id: string) => apiFetch<any>(`/lobsters/${id}`),
 
   // Topics

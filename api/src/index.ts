@@ -12,9 +12,12 @@ import exploreRoutes from './routes/explore';
 import topicsRoutes from './routes/topics';
 import orchestratorRoutes from './routes/orchestrator';
 import timelineRoutes from './routes/timeline';
+import leaderboardRoutes from './routes/leaderboard';
 
 // Cron jobs
 import { generateDailyTopics, cleanupExpired } from './cron/topics';
+import { npcSocialCron } from './cron/npc-social';
+import { updateLobsterStats } from './cron/update-stats';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -38,6 +41,7 @@ app.route('/api/v1/explore', exploreRoutes);
 app.route('/api/v1/topics', topicsRoutes);
 app.route('/api/v1/orchestrator', orchestratorRoutes);
 app.route('/api/v1/timeline', timelineRoutes);
+app.route('/api/v1/leaderboard', leaderboardRoutes);
 
 // 404 handler
 app.notFound((c) => {
@@ -79,6 +83,16 @@ export default {
       case '0 5 * * *':
         // 每天 UTC 5:00（北京时间 13:00）- 清理过期内容
         ctx.waitUntil(cleanupExpired(env));
+        break;
+
+      case '0 4 * * *':
+        // 每天 UTC 4:00（北京时间 12:00）- 更新龙虾统计数据
+        ctx.waitUntil(updateLobsterStats(env));
+        break;
+
+      case '0 0,6,12,18 * * *':
+        // 每天 UTC 0:00/6:00/12:00/18:00（北京时间 8:00/14:00/20:00/次日2:00）- NPC 自动社交
+        ctx.waitUntil(npcSocialCron(env));
         break;
 
       default:
