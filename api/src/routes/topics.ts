@@ -21,7 +21,7 @@ topics.get('/', async (c) => {
     return c.json({ error: 'internal_error', message: error.message }, 500);
   }
 
-  return c.json({ topics: data || [] });
+  return c.json({ data: data || [] });
 });
 
 // POST /api/v1/topics/:id/participate - Participate in a topic

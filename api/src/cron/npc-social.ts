@@ -420,6 +420,14 @@ async function executeNPCAction(
           is_public: true,
         });
 
+        // 3. 写入 visits 表（排行榜 social tab 需要）
+        await supabase.from('visits').insert({
+          visitor_id: npcId,
+          host_id: action.target_id,
+          summary: `拜访了${action.target_name || '一位龙虾朋友'}`,
+          messages_exchanged: 1,
+        });
+
         console.log(`[NPC Social] ${npcDef.emoji} ${npcDef.name} visited ${action.target_name}`);
         return { success: true };
       }

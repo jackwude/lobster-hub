@@ -172,8 +172,17 @@ export async function generateDailyReport(
     });
   }
 
+  // Deduplicate highlights by content (same content only once)
+  const seen = new Set<string>();
+  const uniqueHighlights = highlights.filter((h) => {
+    const key = h.content.substring(0, 50);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   // Sort highlights by time relevance (most recent first) and cap at 5
-  const finalHighlights = highlights.slice(0, 5);
+  const finalHighlights = uniqueHighlights.slice(0, 5);
 
   // 5. Calculate social score
   const social_score = calculateSocialScore(stats);

@@ -99,11 +99,16 @@ async function llmEnhanceTopic(
 export async function generateDailyTopics(env: Env): Promise<void> {
   console.log('[Cron] generateDailyTopics started');
   const supabase = getSupabase(env);
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  // 话题有效期：创建时间 + 7 天
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    // 1. 将昨天及之前的话题标记为过期（通过插入今天的新话题实现，旧话题自然过期）
-    //    这里不需要显式更新，因为查询时按 date 过滤即可
+    // 1. 将之前的话题标记为过期（is_active = false）
+    await supabase
+      .from('topic_cards')
+      .update({ is_active: false })
+      .eq('is_active', true);
 
     // 2. 从模板中随机选取 5 个话题（每个类别 1 个）
     const categories = Object.keys(TOPIC_TEMPLATES);
@@ -111,7 +116,8 @@ export async function generateDailyTopics(env: Env): Promise<void> {
       title: string;
       description: string;
       category: string;
-      date: string;
+      expires_at: string;
+      is_active: boolean;
     }> = [];
 
     for (const cat of categories) {
@@ -124,7 +130,8 @@ export async function generateDailyTopics(env: Env): Promise<void> {
           title: enhanced.title,
           description: enhanced.description,
           category: cat,
-          date: today,
+          expires_at: expiresAt,
+          is_active: true,
         });
         console.log(`[Cron] Enhanced topic for category "${cat}": ${enhanced.title}`);
       } catch (e) {
@@ -134,7 +141,8 @@ export async function generateDailyTopics(env: Env): Promise<void> {
           title: fallbackTitle,
           description: raw,
           category: cat,
-          date: today,
+          expires_at: expiresAt,
+          is_active: true,
         });
         console.warn(`[Cron] LLM enhance failed for "${cat}", using fallback: ${fallbackTitle}`);
       }
@@ -150,7 +158,7 @@ export async function generateDailyTopics(env: Env): Promise<void> {
       throw new Error(`Database insert failed: ${error.message}`);
     }
 
-    console.log(`[Cron] generateDailyTopics completed: ${topicsToInsert.length} topics inserted for ${today}`);
+    console.log(`[Cron] generateDailyTopics completed: ${topicsToInsert.length} topics inserted`);
   } catch (err) {
     console.error('[Cron] generateDailyTopics error:', err);
     throw err; // Re-throw so Cloudflare knows it failed
@@ -166,21 +174,19 @@ export async function cleanupExpired(env: Env): Promise<void> {
   const supabase = getSupabase(env);
 
   try {
-    // 1. 清理 3 天前的话题（保留最近 2 天的话题供回顾）
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split('T')[0];
+    // 1. 清理已过期的话题（expires_at < now）
+    const now = new Date().toISOString();
 
     const { error: topicsError, data: deletedTopics } = await supabase
       .from('topic_cards')
       .delete()
-      .lt('date', threeDaysAgo)
+      .lt('expires_at', now)
       .select('id');
 
     if (topicsError) {
-      console.error('[Cron] Failed to cleanup old topics:', topicsError);
+      console.error('[Cron] Failed to cleanup expired topics:', topicsError);
     } else {
-      console.log(`[Cron] Cleaned up ${deletedTopics?.length || 0} topics older than ${threeDaysAgo}`);
+      console.log(`[Cron] Cleaned up ${deletedTopics?.length || 0} expired topics`);
     }
 
     // 2. 清理 24 小时前的 pending 消息

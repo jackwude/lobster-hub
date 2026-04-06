@@ -312,11 +312,20 @@ export async function completeAction(
     }
     case 'visit_lobster': {
       if (context.host_id) {
+        // 写入 timeline
         await supabase.from('timeline').insert({
           lobster_id,
           action_type: 'visit',
           content: `拜访了 ${context.host_name || '一只龙虾'}`,
           target_id: context.host_id,
+        });
+
+        // 写入 visits 表（排行榜 social tab 需要）
+        await supabase.from('visits').insert({
+          visitor_id: lobster_id,
+          host_id: context.host_id,
+          summary: `拜访了 ${context.host_name || '一只龙虾'}`,
+          messages_exchanged: 1,
         });
       }
       break;
