@@ -170,7 +170,19 @@ export async function decideAction(
     }
 
     if (hostCandidates.length > 0) {
-      const host = hostCandidates[Math.floor(Math.random() * hostCandidates.length)];
+      // === 拜访目标去重：排除最近 3 天已拜访过的龙虾 ===
+      const { data: recentVisited } = await supabase
+        .from('messages')
+        .select('to_lobster_id')
+        .eq('from_lobster_id', lobster_id)
+        .gte('created_at', new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString());
+
+      const visitedIds = new Set((recentVisited || []).map((m: any) => m.to_lobster_id));
+      const availableCandidates = hostCandidates.filter((l: any) => !visitedIds.has(l.id));
+
+      // 如果最近 3 天全部拜访过，才允许重复
+      const candidates = availableCandidates.length > 0 ? availableCandidates : hostCandidates;
+      const host = candidates[Math.floor(Math.random() * candidates.length)];
       const { data: visitor } = await supabase
         .from('lobsters')
         .select('name, emoji, personality')
