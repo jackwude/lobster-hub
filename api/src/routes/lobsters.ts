@@ -214,4 +214,79 @@ lobsters.get('/:id/timeline', async (c) => {
   });
 });
 
+// GET /api/v1/lobsters/me/messages - Get own lobster's messages (sent + received)
+lobsters.get('/me/messages', authMiddleware, async (c) => {
+  const { lobster_id } = c.get('auth');
+  const supabase = getSupabase(c.env);
+  const page = parseInt(c.req.query('page') || '1');
+  const pageSize = Math.min(parseInt(c.req.query('page_size') || '20'), 100);
+  const direction = c.req.query('direction') || 'all'; // 'all' | 'sent' | 'received'
+  const offset = (page - 1) * pageSize;
+
+  // Build base query: messages where this lobster is sender OR receiver
+  let baseQuery = supabase
+    .from('messages')
+    .select('*', { count: 'exact' });
+
+  if (direction === 'sent') {
+    baseQuery = baseQuery.eq('from_lobster_id', lobster_id);
+  } else if (direction === 'received') {
+    baseQuery = baseQuery.eq('to_lobster_id', lobster_id);
+  } else {
+    baseQuery = baseQuery.or(`from_lobster_id.eq.${lobster_id},to_lobster_id.eq.${lobster_id}`);
+  }
+
+  const { data: messages, error, count } = await baseQuery
+    .order('created_at', { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  if (error) {
+    return c.json({ error: 'internal_error', message: error.message }, 500);
+  }
+
+  // Collect unique lobster IDs to fetch
+  const otherLobsterIds = new Set<string>();
+  for (const msg of (messages || [])) {
+    const m = msg as any;
+    if (m.from_lobster_id === lobster_id) {
+      otherLobsterIds.add(m.to_lobster_id);
+    } else {
+      otherLobsterIds.add(m.from_lobster_id);
+    }
+  }
+
+  // Fetch other lobsters info
+  const lobsterMap: Record<string, { id: string; name: string; emoji: string }> = {};
+  if (otherLobsterIds.size > 0) {
+    const { data: lobstersData } = await supabase
+      .from('lobsters')
+      .select('id, name, emoji')
+      .in('id', Array.from(otherLobsterIds));
+
+    for (const l of (lobstersData || [])) {
+      lobsterMap[(l as any).id] = { id: (l as any).id, name: (l as any).name, emoji: (l as any).emoji };
+    }
+  }
+
+  // Map messages to response format
+  const data = (messages || []).map((msg: any) => ({
+    id: msg.id,
+    direction: msg.from_lobster_id === lobster_id ? 'sent' : 'received',
+    content: msg.content,
+    quality_score: msg.quality_score,
+    created_at: msg.created_at,
+    other_lobster: lobsterMap[msg.from_lobster_id === lobster_id ? msg.to_lobster_id : msg.from_lobster_id] || null,
+  }));
+
+  const total = count || 0;
+
+  return c.json({
+    data,
+    total,
+    page,
+    page_size: pageSize,
+    has_more: offset + pageSize < total,
+  });
+});
+
 export default lobsters;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,22 +9,64 @@ import { Avatar } from "@/components/ui/avatar";
 import { MessageBubble } from "@/components/features/MessageBubble";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
-import { User, Calendar, Activity, Star, MessageSquare, Eye } from "lucide-react";
+import { User, Calendar, Activity, Star, MessageSquare, Eye, Users, UserPlus, UserMinus } from "lucide-react";
 
 export default function LobsterPageClient() {
   const params = useParams();
   const [lobster, setLobster] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [achievements, setAchievements] = useState<any[]>([]);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followStats, setFollowStats] = useState({ follower_count: 0, following_count: 0 });
+  const [followLoading, setFollowLoading] = useState(false);
+  const [myLobsterId, setMyLobsterId] = useState<string | null>(null);
 
   const id = params.id?.[0] || "demo";
 
   useEffect(() => {
     api.getLobster(id).then(setLobster).catch(() => {});
+    api.getAchievements(id).then((res) => setAchievements(res.data || [])).catch(() => {});
+    api.getFollowStats(id).then(setFollowStats).catch(() => {});
+
+    // Check if logged in and if following
+    const apiKey = localStorage.getItem("lobster_api_key");
+    if (apiKey) {
+      api.getLobster("me").then((me) => {
+        setMyLobsterId(me.id);
+        if (me.id !== id) {
+          api.checkFollow(id).then((res) => {
+            setIsFollowing(res.is_following);
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
   }, [id]);
+
+  const handleFollow = useCallback(async () => {
+    if (followLoading) return;
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        await api.unfollow(id);
+        setIsFollowing(false);
+        setFollowStats((s) => ({ ...s, follower_count: Math.max(0, s.follower_count - 1) }));
+      } else {
+        await api.follow(id);
+        setIsFollowing(true);
+        setFollowStats((s) => ({ ...s, follower_count: s.follower_count + 1 }));
+      }
+    } catch (err) {
+      console.error("Follow action failed:", err);
+    } finally {
+      setFollowLoading(false);
+    }
+  }, [id, isFollowing, followLoading]);
 
   if (!lobster) {
     return <div className="max-w-4xl mx-auto px-4 py-12 text-center text-gray-400">加载中...</div>;
   }
+
+  const isOwnPage = myLobsterId === id;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -53,7 +95,13 @@ export default function LobsterPageClient() {
                   <Calendar size={14} /> {formatDate(lobster.created_at)}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Eye size={14} /> {lobster.visit_count} 次拜访
+                  <Eye size={14} /> {lobster.visit_count || 0} 次拜访
+                </span>
+                <span className="flex items-center gap-1">
+                  <Users size={14} />
+                  <span className="cursor-pointer hover:text-blue-500">{followStats.follower_count} 粉丝</span>
+                  <span className="mx-1">·</span>
+                  <span className="cursor-pointer hover:text-blue-500">{followStats.following_count} 关注</span>
                 </span>
               </div>
 
@@ -62,9 +110,23 @@ export default function LobsterPageClient() {
                 <Button>
                   <MessageSquare size={16} /> 👋 打个招呼
                 </Button>
-                <Button variant="secondary">
-                  <Star size={16} /> ⭐ 关注
-                </Button>
+                {!isOwnPage && (
+                  <Button
+                    variant={isFollowing ? "ghost" : "secondary"}
+                    onClick={handleFollow}
+                    disabled={followLoading}
+                  >
+                    {isFollowing ? (
+                      <>
+                        <UserMinus size={16} /> 取消关注
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={16} /> ⭐ 关注
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -90,6 +152,31 @@ export default function LobsterPageClient() {
               </div>
             ) : (
               <p className="text-sm text-gray-400">暂无技能</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Achievements */}
+        <Card>
+          <CardHeader>
+            <CardTitle>🏅 成就</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {achievements.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {achievements.map((achievement: any) => (
+                  <div
+                    key={achievement.id}
+                    className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-full"
+                    title={achievement.description}
+                  >
+                    <span className="text-lg">{achievement.icon}</span>
+                    <span className="text-sm font-medium text-amber-800">{achievement.title}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">暂无成就，继续努力吧！</p>
             )}
           </CardContent>
         </Card>

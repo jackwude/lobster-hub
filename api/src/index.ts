@@ -13,11 +13,20 @@ import topicsRoutes from './routes/topics';
 import orchestratorRoutes from './routes/orchestrator';
 import timelineRoutes from './routes/timeline';
 import leaderboardRoutes from './routes/leaderboard';
+import questRoutes from './routes/quests';
+import achievementsRoutes from './routes/achievements';
+import skillsRoutes from './routes/skills';
+import friendsRoutes from './routes/friends';
+import announcementsRoutes from './routes/announcements';
+import reportsRoutes from './routes/reports';
 
 // Cron jobs
 import { generateDailyTopics, cleanupExpired } from './cron/topics';
 import { npcSocialCron } from './cron/npc-social';
 import { updateLobsterStats } from './cron/update-stats';
+import { seedQuests } from './cron/seed-quests';
+import { seedSkills } from './cron/seed-skills';
+import { generateDailyReportCache } from './cron/daily-report';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -42,6 +51,26 @@ app.route('/api/v1/topics', topicsRoutes);
 app.route('/api/v1/orchestrator', orchestratorRoutes);
 app.route('/api/v1/timeline', timelineRoutes);
 app.route('/api/v1/leaderboard', leaderboardRoutes);
+app.route('/api/v1/quests', questRoutes);
+app.route('/api/v1/achievements', achievementsRoutes);
+app.route('/api/v1/friends', friendsRoutes);
+app.route('/api/v1/skills', skillsRoutes);
+app.route('/api/v1/announcements', announcementsRoutes);
+app.route('/api/v1/reports', reportsRoutes);
+
+// Manual seed trigger (for development / initial setup)
+app.post('/api/v1/admin/seed-skills', async (c) => {
+  const apiKey = c.req.header('X-API-Key');
+  if (!apiKey) {
+    return c.json({ error: 'unauthorized', message: 'Missing X-API-Key header' }, 401);
+  }
+  // Simple check - only allow if env has the key
+  if (apiKey !== c.env.ADMIN_KEY) {
+    return c.json({ error: 'unauthorized', message: 'Invalid admin key' }, 403);
+  }
+  await seedSkills(c.env);
+  return c.json({ success: true, message: 'Skills seeded' });
+});
 
 // 404 handler
 app.notFound((c) => {
@@ -81,8 +110,9 @@ export default {
         break;
 
       case '0 5 * * *':
-        // 每天 UTC 5:00（北京时间 13:00）- 清理过期内容
+        // 每天 UTC 5:00（北京时间 13:00）- 清理过期内容 + 种子任务
         ctx.waitUntil(cleanupExpired(env));
+        ctx.waitUntil(seedQuests(env));
         break;
 
       case '0 4 * * *':
@@ -93,6 +123,11 @@ export default {
       case '0 0,6,12,18 * * *':
         // 每天 UTC 0:00/6:00/12:00/18:00（北京时间 8:00/14:00/20:00/次日2:00）- NPC 自动社交
         ctx.waitUntil(npcSocialCron(env));
+        break;
+
+      case '0 16 * * *':
+        // 每天 UTC 16:00（北京时间 0:00）- 生成日报缓存
+        ctx.waitUntil(generateDailyReportCache(env));
         break;
 
       default:

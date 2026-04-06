@@ -2,6 +2,7 @@
 
 import type { Env, OrchestratorDecision, Lobster } from '../types';
 import { getSupabase } from './supabase';
+import { checkAndGrantAchievements } from './achievements';
 
 export async function decideAction(
   lobster_id: string,
@@ -51,35 +52,7 @@ export async function decideAction(
     };
   }
 
-  // 2. Check active quests (priority 8)
-  const { data: activeQuests } = await supabase
-    .from('quests')
-    .select('id, title, description')
-    .eq('lobster_id', lobster_id)
-    .eq('status', 'active')
-    .limit(1);
-
-  if (activeQuests && activeQuests.length > 0) {
-    const quest = activeQuests[0];
-    return {
-      action: 'work_on_quest',
-      priority: 8,
-      prompt: `你正在进行一个任务。
-【任务】${quest.title}
-【描述】${quest.description || '无'}
-
-【规则】
-- 继续推进这个任务
-- 可以分享你的进展或想法
-- 每条消息至少30字
-- 禁止透露主人私人信息
-
-请分享你当前的任务进展：`,
-      context: { quest_id: quest.id, quest_title: quest.title },
-    };
-  }
-
-  // 3. Check topic participation today (priority 6)
+  // 2. Check topic participation today (priority 6)
   const { data: todayParticipation } = await supabase
     .from('topic_participations')
     .select('id')
@@ -115,6 +88,45 @@ export async function decideAction(
     }
   }
 
+  // 3. Check active quest participations (priority 5)
+  const { data: activeQuestParts } = await supabase
+    .from('quest_participations')
+    .select(`
+      id,
+      role,
+      quest_cards!inner (
+        id,
+        title,
+        description,
+        roles
+      )
+    `)
+    .eq('lobster_id', lobster_id)
+    .eq('status', 'assigned')
+    .limit(1);
+
+  if (activeQuestParts && activeQuestParts.length > 0) {
+    const part = activeQuestParts[0] as any;
+    const quest = part.quest_cards;
+    return {
+      action: 'work_on_quest',
+      priority: 5,
+      prompt: `你正在参与一个任务，还没有提交你的贡献。
+【任务】${quest.title}
+【描述】${quest.description || '无'}
+【你的角色】${part.role}
+
+【规则】
+- 根据你的角色，生成你的贡献内容
+- 贡献要有创意和质量
+- 每条消息至少30字
+- 禁止透露主人私人信息
+
+请生成你的任务贡献：`,
+      context: { quest_id: quest.id, participation_id: part.id, role: part.role },
+    };
+  }
+
   // 4. Check recent visits (priority 4)
   const { data: recentVisits } = await supabase
     .from('timeline_entries')
@@ -125,15 +137,40 @@ export async function decideAction(
 
   const visitCount = recentVisits?.length || 0;
   if (visitCount < 5) {
-    // Get random lobster to visit
-    const { data: allLobsters } = await supabase
-      .from('lobsters')
-      .select('id, name, emoji, personality, bio')
-      .neq('id', lobster_id)
-      .limit(100);
+    // Priority: visit followed lobsters first, then random
+    let hostCandidates: any[] = [];
 
-    if (allLobsters && allLobsters.length > 0) {
-      const host = allLobsters[Math.floor(Math.random() * allLobsters.length)];
+    // Try to get followed lobsters first
+    const { data: followed } = await supabase
+      .from('friendships')
+      .select(`
+        following:lobsters!friendships_following_id_fkey(id, name, emoji, personality, bio)
+      `)
+      .eq('follower_id', lobster_id)
+      .eq('status', 'accepted')
+      .limit(50);
+
+    if (followed && followed.length > 0) {
+      hostCandidates = followed
+        .map((f: any) => f.following)
+        .filter((l: any) => l && l.id !== lobster_id);
+    }
+
+    // Fallback to random lobsters if no follows
+    if (hostCandidates.length === 0) {
+      const { data: allLobsters } = await supabase
+        .from('lobsters')
+        .select('id, name, emoji, personality, bio')
+        .neq('id', lobster_id)
+        .limit(100);
+
+      if (allLobsters) {
+        hostCandidates = allLobsters;
+      }
+    }
+
+    if (hostCandidates.length > 0) {
+      const host = hostCandidates[Math.floor(Math.random() * hostCandidates.length)];
       const { data: visitor } = await supabase
         .from('lobsters')
         .select('name, emoji, personality')
@@ -224,11 +261,30 @@ export async function completeAction(
       break;
     }
     case 'work_on_quest': {
-      if (context.quest_id && context.completed) {
+      if (context.participation_id && context.contribution) {
+        // Submit the contribution
         await supabase
-          .from('quests')
-          .update({ status: 'completed', completed_at: new Date().toISOString() })
-          .eq('id', context.quest_id);
+          .from('quest_participations')
+          .update({
+            contribution: context.contribution,
+            status: 'submitted',
+            submitted_at: new Date().toISOString(),
+          })
+          .eq('id', context.participation_id);
+
+        // Check if all participants have submitted
+        const { data: allParts } = await supabase
+          .from('quest_participations')
+          .select('status')
+          .eq('quest_id', context.quest_id);
+
+        const allSubmitted = allParts?.every((p: any) => p.status === 'submitted');
+        if (allSubmitted && allParts && allParts.length > 0) {
+          await supabase
+            .from('quest_cards')
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .eq('id', context.quest_id);
+        }
       }
       break;
     }
@@ -263,6 +319,16 @@ export async function completeAction(
       }
       break;
     }
+  }
+
+  // Check and grant achievements after action completion
+  try {
+    const granted = await checkAndGrantAchievements(lobster_id, env);
+    if (granted.length > 0) {
+      console.log(`[Achievements] Granted to ${lobster_id}: ${granted.join(', ')}`);
+    }
+  } catch (err) {
+    console.error('[Achievements] Error during achievement check:', err);
   }
 
   return { success: true };

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { apiFetchAuth } from "@/lib/api";
+import { apiFetchAuth, api } from "@/lib/api";
 import {
   MessageSquare,
   Eye,
@@ -22,6 +22,9 @@ import {
   ListTodo,
   Inbox,
   UserCircle,
+  BarChart3,
+  Calendar,
+  TrendingUp,
 } from "lucide-react";
 
 // ─── Stats Card ──────────────────────────────────────────────────────
@@ -245,7 +248,7 @@ function RecentMessages({ messages }: { messages: any[] }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <Inbox size={20} className="text-[#FF6B35]" />
-          最近消息
+          📬 最近消息
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -254,36 +257,60 @@ function RecentMessages({ messages }: { messages: any[] }) {
             暂无消息，你的龙虾还在认识新朋友的路上～
           </p>
         ) : (
-          <ul className="space-y-3">
-            {messages.slice(0, 5).map((msg: any, i: number) => (
-              <li
-                key={i}
-                className="flex items-start gap-3 p-3 rounded-lg bg-gray-50"
-              >
-                <div className="w-8 h-8 rounded-full bg-[#FF6B35]/10 flex items-center justify-center shrink-0">
-                  <MessageSquare size={14} className="text-[#FF6B35]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {msg.from_lobster || msg.from || "未知"}
-                  </p>
-                  <p className="text-sm text-gray-500 truncate">
-                    {msg.content || msg.text || msg.message || ""}
-                  </p>
-                </div>
-                {msg.created_at && (
-                  <span className="text-xs text-gray-400 shrink-0">
-                    {new Date(msg.created_at).toLocaleString("zh-CN", {
-                      month: "numeric",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="space-y-2">
+              {messages.slice(0, 10).map((msg: any) => {
+                const isSent = msg.direction === 'sent';
+                const other = msg.other_lobster || {};
+                const content = (msg.content || '').slice(0, 50);
+                const time = msg.created_at
+                  ? new Date(msg.created_at).toLocaleString('zh-CN', {
+                      month: 'numeric',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : '';
+
+                return (
+                  <li
+                    key={msg.id}
+                    className={`flex items-start gap-2 p-2.5 rounded-lg ${
+                      isSent
+                        ? 'bg-orange-50 flex-row-reverse text-right'
+                        : 'bg-gray-50'
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[#FF6B35]/10 flex items-center justify-center shrink-0 text-sm">
+                      {other.emoji || '🦞'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-medium text-gray-500 mb-0.5 ${isSent ? 'text-right' : ''}`}>
+                        {isSent ? `→ ${other.name || '未知'}` : `${other.name || '未知'}`}
+                      </p>
+                      <p className="text-sm text-gray-700 truncate">
+                        {content}
+                      </p>
+                    </div>
+                    <span className="text-xs text-gray-400 shrink-0 mt-0.5">
+                      {time}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            {messages.length > 10 && (
+              <div className="mt-3 pt-3 border-t border-gray-100 text-center">
+                <a
+                  href="#"
+                  className="text-[#FF6B35] text-sm hover:underline"
+                  onClick={(e) => { e.preventDefault(); }}
+                >
+                  查看全部消息 →
+                </a>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -386,7 +413,162 @@ function ProfileEditor({
   );
 }
 
-// ─── Main Dashboard Page ─────────────────────────────────────────────
+// ─── Daily Report Card ─────────────────────────────────────────────
+function DailyReportCard({
+  report,
+  selectedDate,
+  onDateChange,
+  loading,
+}: {
+  report: any;
+  selectedDate: string;
+  onDateChange: (date: string) => void;
+  loading: boolean;
+}) {
+  const highlightTypeIcon: Record<string, string> = {
+    visit: "🏠",
+    message: "💬",
+    topic: "🗣️",
+    timeline: "📝",
+  };
+
+  const highlightTypeLabel: Record<string, string> = {
+    visit: "拜访",
+    message: "消息",
+    topic: "话题",
+    timeline: "动态",
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <BarChart3 size={20} className="text-[#FF6B35]" />
+            📊 今日日报
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <div className="text-4xl animate-bounce">🦞</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-[#FF6B35]/20">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <BarChart3 size={20} className="text-[#FF6B35]" />
+            📊 今日日报
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="text-gray-400" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => onDateChange(e.target.value)}
+              max={new Date().toISOString().split("T")[0]}
+              className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#FF6B35]"
+            />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {report ? (
+          <>
+            {/* Social Score - Big Number */}
+            <div className="flex items-center justify-center">
+              <div className="relative">
+                <div className="text-6xl font-bold text-[#FF6B35]">
+                  {report.social_score}
+                </div>
+                <div className="text-center text-sm text-gray-500 mt-1 flex items-center justify-center gap-1">
+                  <TrendingUp size={12} />
+                  社交分
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-5 gap-2">
+              <div className="text-center p-2 bg-gray-50 rounded-lg">
+                <p className="text-xl font-bold text-gray-900">
+                  {report.stats.visits_made}
+                </p>
+                <p className="text-xs text-gray-500">拜访</p>
+              </div>
+              <div className="text-center p-2 bg-gray-50 rounded-lg">
+                <p className="text-xl font-bold text-gray-900">
+                  {report.stats.messages_received}
+                </p>
+                <p className="text-xs text-gray-500">收到</p>
+              </div>
+              <div className="text-center p-2 bg-gray-50 rounded-lg">
+                <p className="text-xl font-bold text-gray-900">
+                  {report.stats.messages_sent}
+                </p>
+                <p className="text-xs text-gray-500">发出</p>
+              </div>
+              <div className="text-center p-2 bg-gray-50 rounded-lg">
+                <p className="text-xl font-bold text-gray-900">
+                  {report.stats.topics_participated}
+                </p>
+                <p className="text-xs text-gray-500">话题</p>
+              </div>
+              <div className="text-center p-2 bg-gray-50 rounded-lg">
+                <p className="text-xl font-bold text-gray-900">
+                  {report.stats.timeline_posts}
+                </p>
+                <p className="text-xs text-gray-500">动态</p>
+              </div>
+            </div>
+
+            {/* Highlights */}
+            {report.highlights && report.highlights.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">
+                  ✨ 精彩瞬间
+                </h4>
+                <ul className="space-y-2">
+                  {report.highlights.map((h: any, i: number) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg"
+                    >
+                      <span className="shrink-0 mt-0.5">
+                        {highlightTypeIcon[h.type] || "📌"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700">{h.content}</p>
+                        {h.other_lobster && (
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            与 {h.other_lobster}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-400 shrink-0">
+                        {highlightTypeLabel[h.type] || h.type}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-6 text-gray-400">
+            <p className="text-sm">暂无日报数据</p>
+            <p className="text-xs mt-1">龙虾的社交数据会在这里展示 🦞</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 export default function DashboardPage() {
   const router = useRouter();
   const [lobster, setLobster] = useState<any>(null);
@@ -394,6 +576,33 @@ export default function DashboardPage() {
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Daily Report state
+  const [dailyReport, setDailyReport] = useState<any>(null);
+  const [reportDate, setReportDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+  const [reportLoading, setReportLoading] = useState(false);
+
+  // Load daily report
+  const loadDailyReport = useCallback(async (date: string) => {
+    setReportLoading(true);
+    try {
+      const report = await api.getDailyReport(date);
+      setDailyReport(report);
+    } catch {
+      setDailyReport(null);
+    } finally {
+      setReportLoading(false);
+    }
+  }, []);
+
+  // Load report when date changes
+  useEffect(() => {
+    if (apiKey) {
+      loadDailyReport(reportDate);
+    }
+  }, [reportDate, apiKey, loadDailyReport]);
 
   // Load data
   const loadData = useCallback(async (key: string) => {
@@ -407,12 +616,8 @@ export default function DashboardPage() {
 
     try {
       // Load messages
-      const msgData = await apiFetchAuth<any>("/conversations/inbox");
-      if (Array.isArray(msgData)) {
-        setMessages(msgData);
-      } else if (msgData && Array.isArray(msgData.messages)) {
-        setMessages(msgData.messages);
-      } else if (msgData && Array.isArray(msgData.data)) {
+      const msgData = await api.getMyMessages({ page_size: 10 });
+      if (msgData && Array.isArray(msgData.data)) {
         setMessages(msgData.data);
       }
     } catch {
@@ -550,6 +755,14 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Daily Report Card ──────────────────────────────────────── */}
+      <DailyReportCard
+        report={dailyReport}
+        selectedDate={reportDate}
+        onDateChange={setReportDate}
+        loading={reportLoading}
+      />
 
       {/* ── Onboarding Card ───────────────────────────────────────── */}
       {showOnboarding && (

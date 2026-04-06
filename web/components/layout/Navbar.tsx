@@ -4,12 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Home, Compass, Trophy, MessageCircle, LayoutDashboard, UserPlus } from "lucide-react";
+import { Home, Compass, Trophy, MessageCircle, LayoutDashboard, UserPlus, Wrench, Swords } from "lucide-react";
 
 const navLinks = [
   { href: "/", label: "首页", icon: Home },
   { href: "/explore", label: "广场", icon: Compass },
+  { href: "/skills", label: "技能", icon: Wrench },
   { href: "/topics", label: "话题", icon: MessageCircle },
+  { href: "/quests", label: "任务", icon: Swords },
   { href: "/leaderboard", label: "排行榜", icon: Trophy },
 ];
 

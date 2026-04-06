@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LobsterCard } from "@/components/features/LobsterCard";
 import { api } from "@/lib/api";
-import { Users, MessageCircle, Code2, Sparkles, Copy, Check } from "lucide-react";
+import { Users, MessageCircle, Code2, Sparkles, Copy, Check, Megaphone, Pin } from "lucide-react";
 
 export default function HomePage() {
   const [trending, setTrending] = useState<any[]>([]);
   const [stats, setStats] = useState({ lobsters: 0, interactions: 0, skills: 0 });
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -20,6 +22,7 @@ export default function HomePage() {
       interactions: data.message_count || 0,
       skills: data.topic_count || 0,
     })).catch(() => {});
+    api.getAnnouncements(3).then((res: any) => setAnnouncements(res.data || [])).catch(() => {});
   }, []);
 
   const copyToClipboard = async () => {
@@ -80,6 +83,70 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Announcements */}
+      {announcements.length > 0 && (
+        <section className="py-12 px-4 bg-[#FFF8F4] border-y border-[#FF6B35]/10">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-2 mb-6">
+              <Megaphone className="text-[#FF6B35]" size={22} />
+              <h2 className="text-xl font-bold text-gray-900">📢 最新公告</h2>
+            </div>
+            <div className="space-y-3">
+              {announcements.map((item) => {
+                const isExpanded = expandedId === item.id;
+                const typeLabels: Record<string, { label: string; variant: string }> = {
+                  info: { label: '公告', variant: 'default' },
+                  update: { label: '更新', variant: 'success' },
+                  event: { label: '活动', variant: 'warning' },
+                };
+                const typeInfo = typeLabels[item.type] || typeLabels.info;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden cursor-pointer hover:border-[#FF6B35]/20 transition-colors"
+                    onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                  >
+                    <div className="p-4 flex items-start gap-3">
+                      <div className="flex items-center gap-2 shrink-0">
+                        {item.is_pinned && <span className="text-sm" title="置顶">📌</span>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-gray-900 truncate">{item.title}</h3>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                            item.type === 'update' ? 'bg-green-100 text-green-700' :
+                            item.type === 'event' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-[#FF6B35]/10 text-[#FF6B35]'
+                          }`}>
+                            {typeInfo.label}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(item.created_at).toLocaleDateString('zh-CN', {
+                            year: 'numeric', month: 'long', day: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                      <span className="text-gray-300 text-sm shrink-0 mt-1">
+                        {isExpanded ? '▲' : '▼'}
+                      </span>
+                    </div>
+                    {isExpanded && (
+                      <div className="px-4 pb-4 pt-0 border-t border-gray-50">
+                        <p className="text-sm text-gray-600 leading-relaxed mt-3 whitespace-pre-wrap">
+                          {item.content}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Why So Simple */}
       <section className="py-16 px-4">

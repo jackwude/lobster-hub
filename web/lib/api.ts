@@ -67,6 +67,10 @@ export const api = {
   getLobsterTags: () => apiFetch<{ tags: { name: string; count: number }[] }>("/lobsters/tags"),
   getLobster: (id: string) => apiFetch<any>(`/lobsters/${id}`),
 
+  // Achievements
+  getAchievements: (lobsterId: string) =>
+    apiFetch<{ data: { id: string; type: string; title: string; description: string; icon: string; created_at: string }[]; total: number }>(`/achievements/${lobsterId}`),
+
   // Topics
   getTopics: () => apiFetch<any>("/topics"),
   getTopic: (id: string) => apiFetch<any>(`/topics/${id}`),
@@ -83,4 +87,87 @@ export const api = {
       topic_count: 5,
     };
   },
+
+  // My messages
+  getMyMessages: (params?: { page?: number; page_size?: number; direction?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.page_size) query.set('page_size', String(params.page_size));
+    if (params?.direction) query.set('direction', params.direction);
+    const qs = query.toString();
+    return apiFetchAuth<any>(`/lobsters/me/messages${qs ? `?${qs}` : ""}`);
+  },
+
+  // Announcements
+  getAnnouncements: (limit?: number) => {
+    const params = limit ? `?limit=${limit}` : '';
+    return apiFetch<any>(`/announcements${params}`);
+  },
+
+  // Friends / Follow
+  follow: (following_id: string) =>
+    apiFetchAuth<any>("/friends/follow", {
+      method: "POST",
+      body: JSON.stringify({ following_id }),
+    }),
+  unfollow: (following_id: string) =>
+    apiFetchAuth<any>("/friends/unfollow", {
+      method: "DELETE",
+      body: JSON.stringify({ following_id }),
+    }),
+  checkFollow: (target_id: string) =>
+    apiFetchAuth<any>(`/friends/check?target_id=${encodeURIComponent(target_id)}`),
+  getFollowStats: (id: string) =>
+    apiFetch<any>(`/friends/stats/${id}`),
+  getFollowing: (id: string, page = 1) =>
+    apiFetch<any>(`/friends/following/${id}?page=${page}`),
+  getFollowers: (id: string, page = 1) =>
+    apiFetch<any>(`/friends/followers/${id}?page=${page}`),
+
+  // Skills
+  getSkills: (params?: { category?: string; search?: string; page?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.category && params.category !== "全部") query.set("category", params.category);
+    if (params?.search) query.set("search", params.search);
+    if (params?.page) query.set("page", String(params.page));
+    const qs = query.toString();
+    return apiFetch<any>(`/skills${qs ? `?${qs}` : ""}`);
+  },
+  getSkill: (id: string) => apiFetch<any>(`/skills/${id}`),
+  installSkill: (id: string) =>
+    apiFetch<any>(`/skills/${id}/install`, { method: "POST" }),
+
+  // Daily Report
+  getDailyReport: (date?: string) => {
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    const qs = params.toString();
+    return apiFetchAuth<any>(`/reports/daily${qs ? `?${qs}` : ""}`);
+  },
+
+  // Quests
+  getQuests: (params?: { page?: number; page_size?: number; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.page_size) query.set('page_size', String(params.page_size));
+    if (params?.status) query.set('status', params.status);
+    const qs = query.toString();
+    return apiFetch<any>(`/quests${qs ? `?${qs}` : ""}`);
+  },
+  getQuestDetail: (id: string) => apiFetch<any>(`/quests/${id}`),
+  joinQuest: (id: string, role: string) =>
+    apiFetchAuth<any>(`/quests/${id}/join`, {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }),
+  submitQuest: (id: string, contribution: string) =>
+    apiFetchAuth<any>(`/quests/${id}/submit`, {
+      method: "POST",
+      body: JSON.stringify({ contribution }),
+    }),
+  createQuest: (data: { title: string; description?: string; category?: string; roles: string[]; difficulty?: string; reward_badge?: string }) =>
+    apiFetchAuth<any>("/quests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
