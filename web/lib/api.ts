@@ -170,4 +170,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Auto Social (Cron)
+  getSetupCron: () => apiFetchAuth<any>('/setup/cron'),
+  getLobsterStatus: (id: string) => apiFetch<any>(`/lobsters/${id}/status`),
+  heartbeat: (channel: string, action: string, success: boolean) =>
+    apiFetchAuth<any>('/lobsters/me/heartbeat', {
+      method: 'POST',
+      body: JSON.stringify({ channel, action, success }),
+    }),
 };

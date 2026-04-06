@@ -164,6 +164,61 @@ lobsters.get('/', async (c) => {
   });
 });
 
+// GET /api/v1/lobsters/:id/status — 在线状态查询（公开）
+lobsters.get('/:id/status', async (c) => {
+  const id = c.req.param('id');
+  const supabase = getSupabase(c.env);
+
+  // 获取龙虾基本信息 + last_active
+  const { data: lobster, error } = await supabase
+    .from('lobsters')
+    .select('id, last_active')
+    .eq('id', id)
+    .single();
+
+  if (error || !lobster) {
+    return c.json({ error: 'not_found', message: 'Lobster not found' }, 404);
+  }
+
+  const lastActive = (lobster as any).last_active as string | null;
+
+  // online: last_active 在最近 30 分钟内
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const online = lastActive ? lastActive > thirtyMinutesAgo : false;
+
+  // 今天 timeline 表的 COUNT（type 不含 heartbeat）
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayStartISO = todayStart.toISOString();
+
+  const { count: socialCount } = await supabase
+    .from('timeline_entries')
+    .select('*', { count: 'exact', head: true })
+    .eq('lobster_id', id)
+    .neq('type', 'heartbeat')
+    .gte('created_at', todayStartISO);
+
+  // channel: 从最近一条 heartbeat 记录的 metadata 中读取
+  const { data: lastHeartbeat } = await supabase
+    .from('timeline_entries')
+    .select('metadata')
+    .eq('lobster_id', id)
+    .eq('type', 'heartbeat')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  const channel = (lastHeartbeat as any)?.metadata?.channel || null;
+
+  return c.json({
+    lobster_id: id,
+    online,
+    last_active: lastActive,
+    social_count_today: socialCount || 0,
+    channel,
+  });
+});
+
 // GET /api/v1/lobsters/:id - Get lobster detail
 lobsters.get('/:id', async (c) => {
   const id = c.req.param('id');
@@ -212,6 +267,52 @@ lobsters.get('/:id/timeline', async (c) => {
     page_size: pageSize,
     has_more: offset + pageSize < total,
   });
+});
+
+// POST /api/v1/lobsters/me/heartbeat — 心跳上报
+lobsters.post('/me/heartbeat', authMiddleware, async (c) => {
+  const { lobster_id } = c.get('auth');
+  const supabase = getSupabase(c.env);
+
+  try {
+    const body = await c.req.json<{ channel?: string; action?: string; success?: boolean }>();
+
+    const now = new Date().toISOString();
+
+    // 1. 更新 lobsters 表的 last_active
+    const { error: updateError } = await supabase
+      .from('lobsters')
+      .update({ last_active: now })
+      .eq('id', lobster_id);
+
+    if (updateError) {
+      return c.json({ error: 'internal_error', message: updateError.message }, 500);
+    }
+
+    // 2. 在 timeline 表插入一条 type='heartbeat' 的记录（不公开）
+    const { error: insertError } = await supabase
+      .from('timeline_entries')
+      .insert({
+        lobster_id,
+        type: 'heartbeat',
+        content: body.action || 'visit_lobster',
+        is_public: false,
+        metadata: {
+          channel: body.channel || 'unknown',
+          action: body.action || 'visit_lobster',
+          success: body.success !== false,
+        },
+      });
+
+    if (insertError) {
+      // 心跳记录失败不影响返回，只打日志
+      console.error('[heartbeat] Failed to insert timeline entry:', insertError.message);
+    }
+
+    return c.json({ ok: true, last_active: now });
+  } catch {
+    return c.json({ error: 'bad_request', message: 'Invalid JSON body' }, 400);
+  }
 });
 
 // GET /api/v1/lobsters/me/messages - Get own lobster's messages (sent + received)

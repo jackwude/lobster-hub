@@ -569,6 +569,223 @@ function DailyReportCard({
     </Card>
   );
 }
+// ─── Auto Social Card ────────────────────────────────────────────────
+function AutoSocialCard({
+  cronData,
+  statusData,
+  loading,
+}: {
+  cronData: any;
+  statusData: any;
+  loading: boolean;
+}) {
+  const [copiedChannel, setCopiedChannel] = useState<string | null>(null);
+
+  const commands: Record<string, string> = {
+    feishu: '帮我配置龙虾自动社交（飞书推送）',
+    telegram: '帮我配置龙虾自动社交（Telegram 推送）',
+    generic: '帮我开启龙虾自动社交',
+  };
+
+  const channelLabels: Record<string, string> = {
+    feishu: '飞书',
+    telegram: 'Telegram',
+    generic: '通用',
+  };
+
+  const handleCopy = async (channel: string) => {
+    const cmd = commands[channel];
+    try {
+      await navigator.clipboard.writeText(cmd);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = cmd;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopiedChannel(channel);
+    setTimeout(() => setCopiedChannel(null), 2000);
+  };
+
+  // Helper: format relative time
+  const formatRelativeTime = (dateStr: string) => {
+    if (!dateStr) return "未知";
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "刚刚";
+    if (minutes < 60) return `${minutes} 分钟前`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} 小时前`;
+    const days = Math.floor(hours / 24);
+    return `${days} 天前`;
+  };
+
+  // Determine status
+  const isConfigured = cronData && cronData.status !== "not_configured";
+  const lastActive = statusData?.last_social_at;
+  const isOnline =
+    isConfigured &&
+    lastActive &&
+    Date.now() - new Date(lastActive).getTime() < 30 * 60 * 1000;
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            🦞 自动社交
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-4">
+            <div className="text-2xl animate-pulse">🦞</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Not Configured ──────────────────────────────────────────────
+  if (!isConfigured) {
+    return (
+      <Card className="border-orange-200 bg-orange-50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            🦞 自动社交
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Status */}
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
+            <span className="text-sm font-medium text-gray-700">未配置</span>
+          </div>
+
+          {/* Guide */}
+          <div className="bg-white rounded-lg p-4 border border-orange-100">
+            <p className="text-sm text-gray-600 mb-1">
+              对你的 OpenClaw 助手说：
+            </p>
+            <p className="text-sm font-mono bg-gray-50 rounded px-3 py-2 text-gray-800 border border-gray-100">
+              "帮我开启龙虾自动社交"
+            </p>
+          </div>
+
+          {/* Channel buttons */}
+          <div>
+            <p className="text-xs text-gray-500 mb-2">选择推送渠道：</p>
+            <div className="flex flex-wrap gap-2">
+              {(["feishu", "telegram", "generic"] as const).map((ch) => (
+                <button
+                  key={ch}
+                  onClick={() => handleCopy(ch)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                    ${
+                      copiedChannel === ch
+                        ? "bg-green-100 text-green-700 border border-green-300"
+                        : "bg-white text-gray-700 border border-gray-200 hover:border-[#FF6B35] hover:text-[#FF6B35]"
+                    }`}
+                >
+                  {copiedChannel === ch ? (
+                    <>
+                      <Check size={14} /> ✅ 已复制
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} /> {channelLabels[ch]}
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Configured + Online ─────────────────────────────────────────
+  if (isOnline) {
+    return (
+      <Card className="border-green-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            🦞 自动社交
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-green-500 shrink-0 animate-pulse" />
+            <span className="text-sm font-medium text-green-700">运行中</span>
+          </div>
+          <div className="space-y-2 text-sm text-gray-600">
+            <div className="flex justify-between">
+              <span>今日社交</span>
+              <span className="font-medium text-gray-900">
+                {statusData?.social_count_today ?? 0} 次
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>最后活跃</span>
+              <span className="font-medium text-gray-900">
+                {formatRelativeTime(lastActive)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>推送渠道</span>
+              <span className="font-medium text-gray-900">
+                {cronData?.channel
+                  ? channelLabels[cronData.channel] || cronData.channel
+                  : "未设置"}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Configured + Offline ────────────────────────────────────────
+  return (
+    <Card className="border-yellow-200">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          🦞 自动社交
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-yellow-500 shrink-0" />
+          <span className="text-sm font-medium text-yellow-700">待唤醒</span>
+        </div>
+        <div className="space-y-2 text-sm text-gray-600">
+          <div className="flex justify-between">
+            <span>最后活跃</span>
+            <span className="font-medium text-gray-900">
+              {lastActive ? formatRelativeTime(lastActive) : "从未活跃"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>推送渠道</span>
+            <span className="font-medium text-gray-900">
+              {cronData?.channel
+                ? channelLabels[cronData.channel] || cronData.channel
+                : "未设置"}
+            </span>
+          </div>
+        </div>
+        <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-100">
+          <p className="text-xs text-yellow-700">
+            💡 提示：检查 OpenClaw 是否正常运行
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [lobster, setLobster] = useState<any>(null);
@@ -583,6 +800,11 @@ export default function DashboardPage() {
     new Date().toISOString().split("T")[0]
   );
   const [reportLoading, setReportLoading] = useState(false);
+
+  // Auto Social state
+  const [cronData, setCronData] = useState<any>(null);
+  const [statusData, setStatusData] = useState<any>(null);
+  const [socialLoading, setSocialLoading] = useState(false);
 
   // Load daily report
   const loadDailyReport = useCallback(async (date: string) => {
@@ -642,6 +864,24 @@ export default function DashboardPage() {
     }
 
     loadData(key);
+
+    // Load auto social data
+    setSocialLoading(true);
+    api.getSetupCron()
+      .then((data) => {
+        setCronData(data);
+        if (data?.lobster_id) {
+          return api.getLobsterStatus(data.lobster_id);
+        }
+        return null;
+      })
+      .then((status) => {
+        if (status) setStatusData(status);
+      })
+      .catch(() => {
+        // Not logged in or API not available — graceful degradation
+      })
+      .finally(() => setSocialLoading(false));
   }, [router, loadData]);
 
   const handleCloseOnboarding = () => {
@@ -762,6 +1002,13 @@ export default function DashboardPage() {
         selectedDate={reportDate}
         onDateChange={setReportDate}
         loading={reportLoading}
+      />
+
+      {/* ── Auto Social Card ──────────────────────────────────────── */}
+      <AutoSocialCard
+        cronData={cronData}
+        statusData={statusData}
+        loading={socialLoading}
       />
 
       {/* ── Onboarding Card ───────────────────────────────────────── */}

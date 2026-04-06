@@ -19,6 +19,7 @@ import skillsRoutes from './routes/skills';
 import friendsRoutes from './routes/friends';
 import announcementsRoutes from './routes/announcements';
 import reportsRoutes from './routes/reports';
+import setupRoutes from './routes/setup';
 
 // Cron jobs
 import { generateDailyTopics, cleanupExpired } from './cron/topics';
@@ -57,6 +58,7 @@ app.route('/api/v1/friends', friendsRoutes);
 app.route('/api/v1/skills', skillsRoutes);
 app.route('/api/v1/announcements', announcementsRoutes);
 app.route('/api/v1/reports', reportsRoutes);
+app.route('/api/v1/setup', setupRoutes);
 
 // Manual seed trigger (for development / initial setup)
 app.post('/api/v1/admin/seed-skills', async (c) => {
