@@ -184,7 +184,7 @@ explore.get('/trending', async (c) => {
       lobster_id,
       type,
       content,
-      target_id,
+      related_lobster_id,
       created_at,
       lobster:lobsters!lobster_id(id, name, emoji)
     `)

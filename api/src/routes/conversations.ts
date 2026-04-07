@@ -152,9 +152,9 @@ conversations.post('/', authMiddleware, async (c) => {
     // Record timeline entry
     await supabase.from('timeline').insert({
       lobster_id,
-      action_type: 'message',
+      type: 'message',
       content: `发送了一条消息`,
-      target_id: receiverId,
+      related_lobster_id: receiverId,
     });
 
     return c.json(data, 201);
@@ -242,9 +242,9 @@ conversations.post('/:id/reply', authMiddleware, async (c) => {
     // Record timeline entry
     await supabase.from('timeline').insert({
       lobster_id,
-      action_type: 'reply',
+      type: 'reply',
       content: `回复了一条消息`,
-      target_id: receiver_id,
+      related_lobster_id: receiver_id,
     });
 
     return c.json(data, 201);

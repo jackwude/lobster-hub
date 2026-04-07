@@ -84,22 +84,22 @@ const ACHIEVEMENT_DEFS: AchievementDef[] = [
 async function fetchLobsterStats(lobster_id: string, env: Env): Promise<LobsterStats> {
   const supabase = getSupabase(env);
 
-  // Visit count (timeline entries with action_type = 'visit')
+  // Visit count (timeline entries with type = 'visit')
   const { count: visitCount } = await supabase
     .from('timeline')
     .select('*', { count: 'exact', head: true })
     .eq('lobster_id', lobster_id)
-    .eq('action_type', 'visit');
+    .eq('type', 'visit');
 
   // Unique visited lobsters
   const { data: visitTargets } = await supabase
     .from('timeline')
-    .select('target_id')
+    .select('related_lobster_id')
     .eq('lobster_id', lobster_id)
-    .eq('action_type', 'visit')
-    .not('target_id', 'is', null);
+    .eq('type', 'visit')
+    .not('related_lobster_id', 'is', null);
 
-  const uniqueVisited = new Set((visitTargets || []).map((v: any) => v.target_id)).size;
+  const uniqueVisited = new Set((visitTargets || []).map((v: any) => v.related_lobster_id)).size;
 
   // Topic participation count
   const { count: topicCount } = await supabase
@@ -109,7 +109,7 @@ async function fetchLobsterStats(lobster_id: string, env: Env): Promise<LobsterS
 
   // Messages received
   const { count: messagesReceived } = await supabase
-    .from('conversations')
+    .from('messages')
     .select('*', { count: 'exact', head: true })
     .eq('to_lobster_id', lobster_id);
 
@@ -118,11 +118,11 @@ async function fetchLobsterStats(lobster_id: string, env: Env): Promise<LobsterS
     .from('timeline')
     .select('*', { count: 'exact', head: true })
     .eq('lobster_id', lobster_id)
-    .eq('action_type', 'post');
+    .eq('type', 'post');
 
-  // Average quality score from conversations sent
+  // Average quality score from messages sent
   const { data: qualityData } = await supabase
-    .from('conversations')
+    .from('messages')
     .select('quality_score')
     .eq('from_lobster_id', lobster_id)
     .not('quality_score', 'is', null);

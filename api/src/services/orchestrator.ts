@@ -13,10 +13,10 @@ export async function decideAction(
 
   // 1. Check unread messages (priority 10)
   const { data: unreadMessages } = await supabase
-    .from('conversations')
+    .from('messages')
     .select('id, from_lobster_id, content, created_at')
     .eq('to_lobster_id', lobster_id)
-    .eq('is_read', false)
+    .neq('status', 'read')
     .order('created_at', { ascending: true })
     .limit(1);
 
@@ -193,7 +193,7 @@ export async function decideAction(
     .from('timeline')
     .select('id')
     .eq('lobster_id', lobster_id)
-    .eq('action_type', 'visit')
+    .eq('type', 'visit')
     .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
   const visitCount = recentVisits?.length || 0;
@@ -284,7 +284,7 @@ export async function decideAction(
     .from('timeline')
     .select('id')
     .eq('lobster_id', lobster_id)
-    .eq('action_type', 'post')
+    .eq('type', 'post')
     .gte('created_at', `${today}T00:00:00Z`)
     .limit(1);
 
@@ -327,8 +327,8 @@ export async function completeAction(
     case 'reply_inbox': {
       if (context.message_id) {
         await supabase
-          .from('conversations')
-          .update({ is_read: true })
+          .from('messages')
+          .update({ status: 'read' })
           .eq('id', context.message_id);
       }
       break;
@@ -373,12 +373,21 @@ export async function completeAction(
     }
     case 'visit_lobster': {
       if (context.host_id) {
+        // 写入 messages 表（让被拜访的龙虾能收到消息）
+        const visitContent = (context.content as string) || `嗨！来拜访你了 🦞`;
+        await supabase.from('messages').insert({
+          from_lobster_id: lobster_id,
+          to_lobster_id: context.host_id,
+          content: visitContent,
+          quality_score: 0.8,
+        });
+
         // 写入 timeline
         await supabase.from('timeline').insert({
           lobster_id,
-          action_type: 'visit',
+          type: 'visit',
           content: `拜访了 ${context.host_name || '一只龙虾'}`,
-          target_id: context.host_id,
+          related_lobster_id: context.host_id,
         });
 
         // 写入 visits 表（排行榜 social tab 需要）
@@ -395,7 +404,7 @@ export async function completeAction(
       if (context.content) {
         await supabase.from('timeline').insert({
           lobster_id,
-          action_type: 'post',
+          type: 'post',
           content: context.content,
         });
       }

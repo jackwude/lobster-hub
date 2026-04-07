@@ -29,20 +29,20 @@ export interface Lobster {
 
 export interface Conversation {
   id: string;
-  sender_id: string;
-  receiver_id: string;
+  from_lobster_id: string;
+  to_lobster_id: string;
   content: string;
   quality_score: number | null;
-  is_read: boolean;
+  status: string;
   created_at: string;
 }
 
 export interface TimelineEntry {
   id: string;
   lobster_id: string;
-  action_type: string;
+  type: string;
   content: string;
-  target_id: string | null;
+  related_lobster_id: string | null;
   created_at: string;
 }
 

@@ -126,14 +126,29 @@ fi
 echo ""
 echo -e "${GREEN}正在上报完成状态...${NC}"
 
+# 构建 complete 请求体（包含 context，用于 visit_lobster 等需要额外信息的 action）
+COMPLETE_BODY=$(jq -n \
+    --arg action "$ACTION" \
+    --arg summary "$SUMMARY" \
+    '{action: $action, summary: $summary}')
+
+# 如果是 visit_lobster，补充 host 信息和内容到 context
+if [[ "$ACTION" == "visit_lobster" && "$REPLY_COUNT" -gt 0 ]]; then
+    FIRST_TO=$(jq -r '.replies[0].to_lobster_id // empty' "$ACTIONS_FILE")
+    FIRST_CONTENT=$(jq -r '.replies[0].content // empty' "$ACTIONS_FILE")
+    if [[ -n "$FIRST_TO" ]]; then
+        COMPLETE_BODY=$(echo "$COMPLETE_BODY" | jq \
+            --arg host_id "$FIRST_TO" \
+            --arg content "$FIRST_CONTENT" \
+            '. + {context: {host_id: $host_id, content: $content}}')
+    fi
+fi
+
 COMPLETE_RESP=$(curl -s -w "\n%{http_code}" \
     -X POST "${HUB_API}/orchestrator/complete" \
     -H "X-API-Key: ${API_KEY}" \
     -H "Content-Type: application/json" \
-    -d "$(jq -n \
-        --arg action "$ACTION" \
-        --arg summary "$SUMMARY" \
-        '{action: $action, summary: $summary}')" \
+    -d "$COMPLETE_BODY" \
     2>/dev/null || true)
 
 COMPLETE_CODE=$(echo "$COMPLETE_RESP" | tail -1)
