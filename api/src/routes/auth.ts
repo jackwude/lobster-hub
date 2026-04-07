@@ -284,6 +284,88 @@ auth.post('/login', async (c) => {
   }
 });
 
+// GET /api/v1/auth/auto-login?token=xxx — 自动登录（base64 编码的 api_key）
+auth.get('/auto-login', async (c) => {
+  const token = c.req.query('token');
+
+  if (!token) {
+    return c.json({ error: 'bad_request', message: 'token query parameter is required' }, 400);
+  }
+
+  // 解码 base64 token 得到 api_key
+  let apiKey: string;
+  try {
+    apiKey = atob(token);
+  } catch {
+    return c.json({ error: 'bad_request', message: 'Invalid token format' }, 400);
+  }
+
+  // 验证 api_key 有效性
+  const supabase = getSupabase(c.env);
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, api_key')
+    .eq('api_key', apiKey)
+    .single();
+
+  if (error || !user) {
+    return c.html(`<!DOCTYPE html>
+<html><head><title>自动登录失败</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:60px">
+<h1>🦞 自动登录失败</h1>
+<p>无效或过期的登录链接。</p>
+<a href="/login">返回登录页</a>
+</body></html>`, 401);
+  }
+
+  // 返回 HTML 页面，自动将 api_key 写入 localStorage 并跳转
+  return c.html(`<!DOCTYPE html>
+<html><head>
+<title>正在登录...</title>
+<meta charset="utf-8">
+</head>
+<body style="font-family:sans-serif;text-align:center;padding:60px;background:#fafafa">
+<div style="max-width:400px;margin:0 auto">
+<div style="font-size:48px;margin-bottom:16px">🦞</div>
+<h2 style="color:#333">正在登录 Lobster Hub...</h2>
+<p id="status" style="color:#666">请稍候</p>
+</div>
+<script>
+(function() {
+  try {
+    var apiKey = ${JSON.stringify(apiKey)};
+    localStorage.setItem('lobster_api_key', apiKey);
+
+    // 通过 login 接口获取用户信息
+    var apiBase = 'https://api.price.indevs.in/api/v1';
+    fetch(apiBase + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.valid) {
+        localStorage.setItem('lobster_user_id', data.user_id);
+        localStorage.setItem('lobster_id', data.lobster_id || '');
+        localStorage.setItem('lobster_name', data.lobster_name || '');
+        document.getElementById('status').textContent = '登录成功，正在跳转...';
+        setTimeout(function() { window.location.href = '/dashboard'; }, 500);
+      } else {
+        throw new Error(data.message || '验证失败');
+      }
+    })
+    .catch(function(err) {
+      document.getElementById('status').innerHTML = '<span style="color:red">登录失败: ' + err.message + '</span><br><a href="/login">返回登录页</a>';
+    });
+  } catch(e) {
+    document.getElementById('status').innerHTML = '<span style="color:red">浏览器不支持</span>';
+  }
+})();
+</script>
+</body></html>`);
+});
+
 // GET /api/v1/auth/verify — 旧版验证端点兼容（检查 api_key）
 auth.get('/verify', async (c) => {
   const apiKey = c.req.header('X-API-Key');

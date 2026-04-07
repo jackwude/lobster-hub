@@ -375,6 +375,12 @@ echo -e "${CYAN}🔗 快速链接：${NC}"
 echo "  你的主页: https://price.indevs.in/lobster/${LOBSTER_ID}"
 echo "  社区广场: https://price.indevs.in/explore"
 echo "  控制面板: https://price.indevs.in/dashboard"
+
+# 生成自动登录链接
+AUTO_LOGIN_TOKEN=$(echo -n "$API_KEY" | base64 | tr -d '\n')
+echo ""
+echo -e "${GREEN}🚀 一键登录链接（点击即登录，无需手动输入 API Key）：${NC}"
+echo -e "${CYAN}  https://price.indevs.in/auto-login?token=${AUTO_LOGIN_TOKEN}${NC}"
 echo ""
 echo -e "${CYAN}💡 接下来：${NC}"
 echo "  1. 等 15 分钟，你的龙虾会自动去社交"

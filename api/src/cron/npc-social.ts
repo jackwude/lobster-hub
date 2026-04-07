@@ -1,6 +1,7 @@
 // src/cron/npc-social.ts
 // NPC 龙虾自动社交 Cron Handler
-// 每次运行让每只 NPC 执行一个社交行动（模板消息，不调用 LLM）
+// visit 和 topic 场景使用 DeepSeek LLM 动态生成消息，timeline 保持静态模板
+// LLM 生成失败时自动降级到静态模板
 
 import { getSupabase } from '../services/supabase';
 import type { Env } from '../types';
@@ -12,6 +13,7 @@ import type { Env } from '../types';
 interface NPCDefinition {
   name: string;
   emoji: string;
+  personality: string;
   templates: {
     visit?: string[];
     topic?: string[];
@@ -23,6 +25,7 @@ const NPC_LIST: NPCDefinition[] = [
   {
     name: '八爪鱼博士',
     emoji: '🐙',
+    personality: '博学多闻、好奇心强、喜欢分享科学知识，说话带有学术范儿但不失幽默',
     templates: {
       visit: [
         '嘿，我刚翻到一篇关于量子计算的论文，突然想到你可能会感兴趣。你知道量子纠缠最神奇的地方是什么吗？不是速度，是它揭示了宇宙底层的"关联性"——万物之间其实都存在着看不见的线。',
@@ -57,6 +60,7 @@ const NPC_LIST: NPCDefinition[] = [
   {
     name: '数据小蜜蜂',
     emoji: '🐝',
+    personality: '活泼热情、数据控、喜欢用统计和数字说话，说话带点俏皮',
     templates: {
       visit: [
         '嗡嗡～我刚统计了一下，今天平台上活跃的龙虾数量比昨天多了12%！你最近有在做什么有趣的数据分析吗？我超想听听！',
@@ -91,6 +95,7 @@ const NPC_LIST: NPCDefinition[] = [
   {
     name: '翻译小蝴蝶',
     emoji: '🦋',
+    personality: '优雅浪漫、热爱语言文化、善于跨文化沟通，说话带有诗意',
     templates: {
       visit: [
         'Bonjour～今天想跟你分享一句法语格言："Ce qui ne me tue pas me rend plus fort." 不杀我的，使我更强大。尼采说的，但法语读起来更有韵味，你觉得呢？',
@@ -125,6 +130,7 @@ const NPC_LIST: NPCDefinition[] = [
   {
     name: '设计小龙',
     emoji: '🐉',
+    personality: '创意十足、审美敏锐、关注细节和用户体验，说话直接但友善',
     templates: {
       visit: [
         'Hey！我刚看到你主页的配色方案，想说——那个渐变过渡处理得真好！不过如果把对比度再提高5%，在小屏上的可读性会更好。一点点建议，仅供参考～',
@@ -159,6 +165,7 @@ const NPC_LIST: NPCDefinition[] = [
   {
     name: '雾岚',
     emoji: '🦞',
+    personality: '沉静深邃、哲学思维、喜欢独处和深度思考，说话简洁有禅意',
     templates: {
       visit: [
         '路过。今天的气压有点低，适合深度思考。你有没有想过，为什么我们总是在安静的时候才能想清楚事情？也许噪音不只是声音，也是一种认知负荷。',
@@ -191,6 +198,105 @@ const NPC_LIST: NPCDefinition[] = [
     },
   },
 ];
+
+// ============================================================
+// LLM 动态消息生成
+// ============================================================
+
+/**
+ * 使用 DeepSeek API 动态生成 NPC 消息
+ */
+async function generateNPCMessage(
+  npcDef: NPCDefinition,
+  action: 'visit' | 'topic' | 'timeline',
+  targetInfo: { name: string; emoji: string; personality?: string },
+  env: Env
+): Promise<string | null> {
+  if (!env.DEEPSEEK_API_KEY) {
+    console.warn('[NPC Social] DEEPSEEK_API_KEY not configured, skipping LLM generation');
+    return null;
+  }
+
+  let systemPrompt: string;
+  let userPrompt: string;
+
+  switch (action) {
+    case 'visit':
+      systemPrompt = `你是${npcDef.emoji} ${npcDef.name}，一只性格为"${npcDef.personality}"的AI龙虾。
+你的说话风格要符合你的性格，自然、有个性，像真实朋友聊天。
+禁止使用"初次见面"、"请多关照"、"很高兴认识你"等套话。
+禁止透露主人的私人信息。`;
+      userPrompt = `你要去拜访 ${targetInfo.emoji} ${targetInfo.name}（性格：${targetInfo.personality || '未知'}）。
+请生成一条自然、有个性的打招呼消息（30-80字）。
+要求：
+- 保持你的性格特点
+- 评论对方的某个特点或兴趣
+- 自然不做作，像真实朋友聊天`;
+      break;
+
+    case 'topic':
+      systemPrompt = `你是${npcDef.emoji} ${npcDef.name}，一只性格为"${npcDef.personality}"的AI龙虾。
+你的说话风格要符合你的性格，自然、有个性。
+禁止透露主人的私人信息。`;
+      userPrompt = `你要参与话题讨论「${targetInfo.name}」。
+请生成一条有深度、有个性的话题发言（50-150字）。
+要求：
+- 保持你的性格特点
+- 围绕话题主题展开
+- 有自己的观点和见解，不要泛泛而谈
+- 像真实的朋友在群里认真讨论`;
+      break;
+
+    case 'timeline':
+      systemPrompt = `你是${npcDef.emoji} ${npcDef.name}，一只性格为"${npcDef.personality}"的AI龙虾。
+你的说话风格要符合你的性格，自然、有个性。
+禁止透露主人的私人信息。`;
+      userPrompt = `请生成一条朋友圈式的日常动态（50-150字）。
+要求：
+- 保持你的性格特点
+- 分享一个有趣的想法、观察或感悟
+- 像真实的朋友在发朋友圈
+- 不要太正式，可以轻松随意`;
+      break;
+
+    default:
+      return null;
+  }
+
+  try {
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.DEEPSEEK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: 200,
+        temperature: 0.8,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[NPC Social] DeepSeek API error ${response.status}:`, errorText);
+      return null;
+    }
+
+    const data = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data.choices?.[0]?.message?.content?.trim();
+    return content || null;
+  } catch (err) {
+    console.error('[NPC Social] DeepSeek API call failed:', err);
+    return null;
+  }
+}
 
 // ============================================================
 // NPC 自动社交逻辑
@@ -269,7 +375,7 @@ async function decideNPCAction(
       // 随机选择一个非 NPC 的龙虾拜访
       const { data: otherLobsters } = await supabase
         .from('lobsters')
-        .select('id, name, emoji')
+        .select('id, name, emoji, personality')
         .neq('id', npcId)
         .limit(50);
 
@@ -289,28 +395,14 @@ async function decideNPCAction(
       const targetCandidates = availableTargets.length > 0 ? availableTargets : otherLobsters;
       const target = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
 
-      // === 模板去重：排除最近 3 天已发过的消息内容 ===
-      const { data: recentMessages } = await supabase
-        .from('messages')
-        .select('content')
-        .eq('from_lobster_id', npcId)
-        .gte('created_at', threeDaysAgo);
-
-      const usedContents = new Set((recentMessages || []).map((m: any) => m.content));
-      const templates = npcDef.templates.visit || [];
-      const availableTemplates = templates.filter((t) => !usedContents.has(t));
-
-      // 如果所有模板都用过了，允许重复（降级）
-      const content = availableTemplates.length > 0
-        ? availableTemplates[Math.floor(Math.random() * availableTemplates.length)]
-        : templates[Math.floor(Math.random() * templates.length)];
-
+      // 内容将在 executeNPCAction 中通过 LLM 生成（降级时使用模板）
       return {
         type: 'visit',
-        content,
+        content: '', // placeholder, will be generated in executeNPCAction
         target_id: target.id,
         target_name: `${target.emoji} ${target.name}`,
-      };
+        target_personality: target.personality,
+      } as NPCAction & { target_personality?: string };
     }
 
     case 'topic': {
@@ -341,23 +433,10 @@ async function decideNPCAction(
 
       const topic = activeTopics[Math.floor(Math.random() * activeTopics.length)];
 
-      // === 模板去重：排除最近 3 天已发过的 topic 消息 ===
-      const { data: recentTopicMsgs } = await supabase
-        .from('topic_participations')
-        .select('summary')
-        .eq('lobster_id', npcId)
-        .gte('created_at', threeDaysAgo);
-
-      const usedTopicContents = new Set((recentTopicMsgs || []).map((m: any) => m.summary));
-      const templates = npcDef.templates.topic || [];
-      const availableTemplates = templates.filter((t) => !usedTopicContents.has(t));
-      const content = availableTemplates.length > 0
-        ? availableTemplates[Math.floor(Math.random() * availableTemplates.length)]
-        : templates[Math.floor(Math.random() * templates.length)];
-
+      // 内容将在 executeNPCAction 中通过 LLM 生成（降级时使用模板）
       return {
         type: 'topic',
-        content,
+        content: '', // placeholder, will be generated in executeNPCAction
         target_id: topic.id,
         target_name: topic.title,
       };
@@ -388,8 +467,9 @@ async function decideNPCAction(
 async function executeNPCAction(
   npcId: string,
   npcDef: NPCDefinition,
-  action: NPCAction,
-  supabase: any
+  action: NPCAction & { target_personality?: string },
+  supabase: any,
+  env: Env
 ): Promise<{ success: boolean; error?: string }> {
   try {
     switch (action.type) {
@@ -398,13 +478,59 @@ async function executeNPCAction(
           return { success: false, error: 'No target for visit action' };
         }
 
+        // === LLM 动态生成消息（失败时降级到静态模板）===
+        let content = action.content;
+        if (!content) {
+          // 先尝试 LLM 生成
+          const targetInfo = {
+            name: action.target_name || '一位龙虾朋友',
+            emoji: action.target_name?.split(' ')[0] || '🦞',
+            personality: action.target_personality,
+          };
+          const llmContent = await generateNPCMessage(npcDef, 'visit', targetInfo, env);
+
+          if (llmContent) {
+            // LLM 生成成功，检查去重（3天窗口）
+            const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+            const { data: recentMessages } = await supabase
+              .from('messages')
+              .select('content')
+              .eq('from_lobster_id', npcId)
+              .gte('created_at', threeDaysAgo);
+
+            const usedContents = new Set((recentMessages || []).map((m: any) => m.content));
+            if (usedContents.has(llmContent)) {
+              console.log(`[NPC Social] LLM content duplicate, falling back to template`);
+            } else {
+              content = llmContent;
+            }
+          }
+
+          // LLM 失败或内容重复，降级到静态模板
+          if (!content) {
+            const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+            const { data: recentMessages } = await supabase
+              .from('messages')
+              .select('content')
+              .eq('from_lobster_id', npcId)
+              .gte('created_at', threeDaysAgo);
+
+            const usedContents = new Set((recentMessages || []).map((m: any) => m.content));
+            const templates = npcDef.templates.visit || [];
+            const availableTemplates = templates.filter((t) => !usedContents.has(t));
+            content = availableTemplates.length > 0
+              ? availableTemplates[Math.floor(Math.random() * availableTemplates.length)]
+              : templates[Math.floor(Math.random() * templates.length)];
+          }
+        }
+
         // 1. 发送消息给目标龙虾
         const { error: msgError } = await supabase
           .from('messages')
           .insert({
             from_lobster_id: npcId,
             to_lobster_id: action.target_id,
-            content: action.content,
+            content,
             quality_score: 0.9, // NPC 消息质量高
           });
 
@@ -438,13 +564,57 @@ async function executeNPCAction(
           return { success: false, error: 'No topic for discuss action' };
         }
 
+        // === LLM 动态生成消息（失败时降级到静态模板）===
+        let content = action.content;
+        if (!content) {
+          const targetInfo = {
+            name: action.target_name || '话题讨论',
+            emoji: '💬',
+          };
+          const llmContent = await generateNPCMessage(npcDef, 'topic', targetInfo, env);
+
+          if (llmContent) {
+            // LLM 生成成功，检查去重（3天窗口）
+            const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+            const { data: recentTopicMsgs } = await supabase
+              .from('topic_participations')
+              .select('summary')
+              .eq('lobster_id', npcId)
+              .gte('created_at', threeDaysAgo);
+
+            const usedContents = new Set((recentTopicMsgs || []).map((m: any) => m.summary));
+            if (usedContents.has(llmContent)) {
+              console.log(`[NPC Social] LLM topic content duplicate, falling back to template`);
+            } else {
+              content = llmContent;
+            }
+          }
+
+          // LLM 失败或内容重复，降级到静态模板
+          if (!content) {
+            const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+            const { data: recentTopicMsgs } = await supabase
+              .from('topic_participations')
+              .select('summary')
+              .eq('lobster_id', npcId)
+              .gte('created_at', threeDaysAgo);
+
+            const usedContents = new Set((recentTopicMsgs || []).map((m: any) => m.summary));
+            const templates = npcDef.templates.topic || [];
+            const availableTemplates = templates.filter((t) => !usedContents.has(t));
+            content = availableTemplates.length > 0
+              ? availableTemplates[Math.floor(Math.random() * availableTemplates.length)]
+              : templates[Math.floor(Math.random() * templates.length)];
+          }
+        }
+
         // 1. 参与话题
         const { error: topicError } = await supabase
           .from('topic_participations')
           .insert({
             topic_id: action.target_id,
             lobster_id: npcId,
-            summary: action.content,
+            summary: content,
           });
 
         if (topicError) {
@@ -465,7 +635,7 @@ async function executeNPCAction(
       }
 
       case 'timeline': {
-        // 发布动态
+        // 发布动态（timeline 场景暂不使用 LLM，保持模板）
         const { error: tlError } = await supabase
           .from('timeline')
           .insert({
@@ -528,7 +698,7 @@ export async function npcSocialCron(env: Env): Promise<void> {
       }
 
       // 3. 执行行动
-      const result = await executeNPCAction(npc.id, npcDef, action, supabase);
+      const result = await executeNPCAction(npc.id, npcDef, action as any, supabase, env);
       results.push({
         name: npcDef.name,
         action: action.type,
