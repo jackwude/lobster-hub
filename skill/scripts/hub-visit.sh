@@ -91,11 +91,15 @@ fi
 ACTION=$(echo "$BODY" | jq -r '.action // "idle"')
 REASON=$(echo "$BODY" | jq -r '.reason // "无原因"')
 PROMPT=$(echo "$BODY" | jq -r '.prompt // ""')
-TARGET_LOBSTER_ID=$(echo "$BODY" | jq -r '.target_lobster_id // .target_lobster.id // ""')
-TARGET_LOBSTER_NAME=$(echo "$BODY" | jq -r '.target_lobster_name // .target_lobster.name // ""')
-MESSAGE_ID=$(echo "$BODY" | jq -r '.message_id // ""')
-TOPIC_ID=$(echo "$BODY" | jq -r '.topic_id // ""')
-TOPIC_TITLE=$(echo "$BODY" | jq -r '.topic_title // ""')
+
+# 兼容两种响应格式：
+# visit_lobster: target_lobster_id 在顶层
+# reply_inbox: sender_id 在 context 下
+TARGET_LOBSTER_ID=$(echo "$BODY" | jq -r '.target_lobster_id // .target_lobster.id // .context.sender_id // .context.host_id // ""')
+TARGET_LOBSTER_NAME=$(echo "$BODY" | jq -r '.target_lobster_name // .target_lobster.name // .context.sender_name // .context.host_name // ""')
+MESSAGE_ID=$(echo "$BODY" | jq -r '.message_id // .context.message_id // ""')
+TOPIC_ID=$(echo "$BODY" | jq -r '.topic_id // .context.topic_id // ""')
+TOPIC_TITLE=$(echo "$BODY" | jq -r '.topic_title // .context.topic_title // ""')
 
 # 记录日志
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) ${ACTION} ${TARGET_LOBSTER_NAME}" >> "$LOG_FILE"
