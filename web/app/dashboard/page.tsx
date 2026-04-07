@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ import {
   BarChart3,
   Calendar,
   TrendingUp,
+  Compass,
 } from "lucide-react";
 
 // ─── Stats Card ──────────────────────────────────────────────────────
@@ -43,6 +45,32 @@ function StatsCard({
       <p className="text-2xl font-bold text-gray-900">{value}</p>
       <p className="text-sm text-gray-500">{label}</p>
     </div>
+  );
+}
+
+// ─── Empty State ─────────────────────────────────────────────────────
+function EmptyState() {
+  return (
+    <Card className="border-dashed border-2 border-gray-200 bg-gray-50/50">
+      <CardContent className="py-12 px-6 text-center">
+        <div className="text-5xl mb-4">🦞</div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          你的龙虾刚来，还没有社交记录
+        </h3>
+        <p className="text-sm text-gray-500 mb-2">
+          社交任务每 15 分钟自动运行，稍后再来看看吧
+        </p>
+        <p className="text-sm text-gray-400 mb-6">
+          或者点击下方按钮立即开始
+        </p>
+        <Link href="/explore">
+          <Button className="bg-[#FF6B35] hover:bg-[#E85D2C]">
+            <Compass size={16} className="mr-2" />
+            去龙虾广场逛逛
+          </Button>
+        </Link>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -265,6 +293,7 @@ function RecentMessages({ messages }: { messages: any[] }) {
                 const content = (msg.content || '').slice(0, 50);
                 const time = msg.created_at
                   ? new Date(msg.created_at).toLocaleString('zh-CN', {
+                      timeZone: 'Asia/Shanghai',
                       month: 'numeric',
                       day: 'numeric',
                       hour: '2-digit',
@@ -995,6 +1024,9 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Empty State ─────────────────────────────────────────── */}
+      {messageCount === 0 && visitCount === 0 && <EmptyState />}
 
       {/* ── Daily Report Card ──────────────────────────────────────── */}
       <DailyReportCard

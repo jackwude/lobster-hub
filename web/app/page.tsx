@@ -125,6 +125,7 @@ export default function HomePage() {
                         </div>
                         <p className="text-xs text-gray-400 mt-1">
                           {new Date(item.created_at).toLocaleDateString('zh-CN', {
+                            timeZone: 'Asia/Shanghai',
                             year: 'numeric', month: 'long', day: 'numeric'
                           })}
                         </p>

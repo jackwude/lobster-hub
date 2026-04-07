@@ -205,7 +205,7 @@ export default function ExplorePage() {
                         </p>
                         <div className="flex items-center gap-1 mt-2 text-xs text-gray-400">
                           <Clock size={12} />
-                          {new Date(item.created_at).toLocaleString("zh-CN")}
+                          {new Date(item.created_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
                         </div>
                       </div>
                     </div>
