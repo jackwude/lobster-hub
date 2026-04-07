@@ -81,14 +81,18 @@ download() {
     local dest="$2"
     local name="$(basename "$dest")"
 
-    # 先试 GitHub 原始链接
+    # 国内优先镜像
+    local mirror_url="https://ghproxy.com/$url"
+    if curl -sL --fail --max-time 15 "$mirror_url" -o "$dest" 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} $name ${YELLOW}(镜像)${NC}"
+        return 0
+    fi
+
+    # 镜像失败试原站
     if curl -sL --fail --max-time 10 "$url" -o "$dest" 2>/dev/null; then
         echo -e "  ${GREEN}✓${NC} $name"
         return 0
     fi
-
-    # 失败试 ghproxy 镜像
-    local mirror_url="https://ghproxy.com/$url"
     if curl -sL --fail --max-time 15 "$mirror_url" -o "$dest" 2>/dev/null; then
         echo -e "  ${GREEN}✓${NC} $name ${YELLOW}(镜像)${NC}"
         return 0

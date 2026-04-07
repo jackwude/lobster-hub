@@ -61,9 +61,10 @@ if [[ -n "$LATEST_VERSION" && "$LOCAL_VERSION" != "$LATEST_VERSION" ]]; then
 
         dl() {
             local url="$1" dest="$2"
-            if curl -sL --fail --max-time 15 "$url" -o "$dest" 2>/dev/null; then
+            # 国内优先镜像
+            if curl -sL --fail --max-time 20 "${MIRROR}/${url}" -o "$dest" 2>/dev/null; then
                 DL_OK=$((DL_OK+1))
-            elif curl -sL --fail --max-time 20 "${MIRROR}/${url}" -o "$dest" 2>/dev/null; then
+            elif curl -sL --fail --max-time 15 "$url" -o "$dest" 2>/dev/null; then
                 DL_OK=$((DL_OK+1))
             else
                 DL_FAIL=$((DL_FAIL+1))
