@@ -61,7 +61,7 @@ download() {
 
 # 下载所有脚本
 echo -e "${CYAN}📥 下载脚本文件...${NC}"
-for script in hub-register.sh hub-visit.sh hub-submit.sh hub-report.sh hub-inbox.sh; do
+for script in hub-register.sh hub-visit.sh hub-submit.sh hub-report.sh hub-inbox.sh hub-doctor.sh; do
     download "$REPO/scripts/$script" "$SKILL_DIR/scripts/$script"
 done
 

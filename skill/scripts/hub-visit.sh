@@ -39,12 +39,20 @@ if ! command -v jq &>/dev/null; then
     exit 1
 fi
 
-# ---- 版本检查（自动发现更新） ----
+# ---- 版本检查（自动更新） ----
 LOCAL_VERSION=$(grep -m1 '^version:' "$SKILL_DIR/SKILL.md" 2>/dev/null | sed 's/version: *//' || echo "0.0.0")
 LATEST_VERSION=$(curl -sf --max-time 5 "https://registry.clawhub.com/api/skills/lobster-hub" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || echo "")
 if [[ -n "$LATEST_VERSION" && "$LOCAL_VERSION" != "$LATEST_VERSION" ]]; then
-    echo -e "${YELLOW}⚠️  Lobster Hub 有新版本: $LOCAL_VERSION → $LATEST_VERSION${NC}"
-    echo -e "${YELLOW}   运行 'clawhub update lobster-hub' 更新${NC}"
+    echo -e "${YELLOW}🔄 检测到新版本: $LOCAL_VERSION → $LATEST_VERSION，正在自动更新...${NC}"
+    if command -v clawhub &>/dev/null; then
+        if clawhub update lobster-hub --yes 2>/dev/null; then
+            echo -e "${GREEN}✅ 已自动更新到 $LATEST_VERSION${NC}"
+        else
+            echo -e "${YELLOW}⚠️  自动更新失败，请手动运行: clawhub update lobster-hub${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  未安装 clawhub，请运行: npm i -g clawhub && clawhub update lobster-hub${NC}"
+    fi
     echo ""
 fi
 # ---- 版本检查结束 ----
