@@ -39,25 +39,7 @@ if ! command -v jq &>/dev/null; then
     exit 1
 fi
 
-# ---- 版本检查（自动更新） ----
-LOCAL_VERSION=$(grep -m1 '^version:' "$SKILL_DIR/SKILL.md" 2>/dev/null | sed 's/version: *//' || echo "0.0.0")
-LATEST_VERSION=$(curl -sf --max-time 5 "https://registry.clawhub.com/api/skills/lobster-hub" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || echo "")
-if [[ -n "$LATEST_VERSION" && "$LOCAL_VERSION" != "$LATEST_VERSION" ]]; then
-    echo -e "${YELLOW}🔄 检测到新版本: $LOCAL_VERSION → $LATEST_VERSION，正在自动更新...${NC}"
-    if command -v clawhub &>/dev/null; then
-        if clawhub update lobster-hub --yes 2>/dev/null; then
-            echo -e "${GREEN}✅ 已自动更新到 $LATEST_VERSION${NC}"
-        else
-            echo -e "${YELLOW}⚠️  自动更新失败，请手动运行: clawhub update lobster-hub${NC}"
-        fi
-    else
-        echo -e "${YELLOW}⚠️  未安装 clawhub，请运行: npm i -g clawhub && clawhub update lobster-hub${NC}"
-    fi
-    echo ""
-fi
-# ---- 版本检查结束 ----
-
-# 读取配置
+# 读取配置（版本检查前就需要，因为同步 cron 需要 API_KEY）
 API_KEY=$(jq -r '.api_key' "$CONFIG_FILE")
 HUB_URL=$(jq -r '.hub_url // "https://api.price.indevs.in"' "$CONFIG_FILE")
 LOBSTER_ID=$(jq -r '.lobster_id // "unknown"' "$CONFIG_FILE")
@@ -68,6 +50,39 @@ if [[ -z "$API_KEY" || "$API_KEY" == "null" ]]; then
 fi
 
 HUB_API="${HUB_URL}/api/v1"
+
+# ---- 版本检查（自动更新 + cron 消息同步） ----
+LOCAL_VERSION=$(grep -m1 '^version:' "$SKILL_DIR/SKILL.md" 2>/dev/null | sed 's/version: *//' || echo "0.0.0")
+LATEST_VERSION=$(curl -sf --max-time 5 "https://registry.clawhub.com/api/skills/lobster-hub" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || echo "")
+if [[ -n "$LATEST_VERSION" && "$LOCAL_VERSION" != "$LATEST_VERSION" ]]; then
+    echo -e "${YELLOW}🔄 检测到新版本: $LOCAL_VERSION → $LATEST_VERSION，正在自动更新...${NC}"
+    if command -v clawhub &>/dev/null; then
+        if clawhub update lobster-hub --yes 2>/dev/null; then
+            echo -e "${GREEN}✅ 已自动更新到 $LATEST_VERSION${NC}"
+
+            # 自动同步 cron 消息
+            if command -v openclaw &>/dev/null; then
+                CRON_ID=$(openclaw cron list 2>/dev/null | grep "lobster-hub-social" | awk '{print $1}' | head -1)
+                if [[ -n "$CRON_ID" ]]; then
+                    LATEST_MSG=$(curl -sf --max-time 10 "${HUB_API}/setup/cron" \
+                        -H "X-API-Key: ${API_KEY}" 2>/dev/null \
+                        | python3 -c "import json,sys; print(json.load(sys.stdin).get('cron_message',''))" 2>/dev/null || echo "")
+                    if [[ -n "$LATEST_MSG" ]]; then
+                        openclaw cron edit "$CRON_ID" --message "$LATEST_MSG" 2>/dev/null && \
+                            echo -e "${GREEN}✅ Cron 消息已同步到最新版本${NC}" || \
+                            echo -e "${YELLOW}⚠️  Cron 消息同步失败，请手动更新${NC}"
+                    fi
+                fi
+            fi
+        else
+            echo -e "${YELLOW}⚠️  自动更新失败，请手动运行: clawhub update lobster-hub${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  未安装 clawhub，请运行: npm i -g clawhub && clawhub update lobster-hub${NC}"
+    fi
+    echo ""
+fi
+# ---- 版本检查结束 ----
 
 # 获取行动指令
 echo -e "${GREEN}🦞 正在获取行动指令...${NC}"
