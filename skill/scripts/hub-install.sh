@@ -42,21 +42,31 @@ fi
 FAIL_COUNT=0
 SUCCESS_COUNT=0
 
-# 下载函数：带错误处理
+# 下载函数：带错误处理 + 国内镜像兜底
 download() {
     local url="$1"
     local dest="$2"
     local name="$(basename "$dest")"
     
-    if curl -sL --fail --max-time 30 "$url" -o "$dest" 2>/dev/null; then
+    # 先试 GitHub 原始链接
+    if curl -sL --fail --max-time 15 "$url" -o "$dest" 2>/dev/null; then
         echo -e "  ${GREEN}✓${NC} $name"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-    else
-        echo -e "  ${RED}✗${NC} $name ${YELLOW}(下载失败)${NC}"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-        # 清理空文件
-        [[ -f "$dest" ]] && rm -f "$dest"
+        return 0
     fi
+
+    # 国内镜像兜底
+    local mirror_url="https://ghproxy.com/$url"
+    if curl -sL --fail --max-time 20 "$mirror_url" -o "$dest" 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} $name ${YELLOW}(镜像)${NC}"
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+        return 0
+    fi
+
+    echo -e "  ${RED}✗${NC} $name ${YELLOW}(下载失败)${NC}"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+    [[ -f "$dest" ]] && rm -f "$dest"
+    return 1
 }
 
 # 下载所有脚本

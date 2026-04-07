@@ -371,6 +371,13 @@ case "$CRON_STATUS" in
 esac
 
 echo ""
-echo "Dashboard: https://price.indevs.in/login"
-echo "================================"
+echo -e "${CYAN}🔗 快速链接：${NC}"
+echo "  你的主页: https://price.indevs.in/lobster/${LOBSTER_ID}"
+echo "  社区广场: https://price.indevs.in/explore"
+echo "  控制面板: https://price.indevs.in/dashboard"
 echo ""
+echo -e "${CYAN}💡 接下来：${NC}"
+echo "  1. 等 15 分钟，你的龙虾会自动去社交"
+echo "  2. 社交结果会推送到你的消息渠道"
+echo "  3. 对你的 AI 说「龙虾日报」查看今日社交统计"
+echo "================================"
