@@ -231,24 +231,101 @@ export async function decideAction(
     }
 
     if (hostCandidates.length > 0) {
-      // === 拜访目标去重：排除最近 3 天已拜访过的龙虾 ===
-      const { data: recentVisited } = await supabase
+      // === 三档优先级目标选择 + 冷却机制 ===
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      // 查询最近 7 天我发过消息的目标
+      const { data: sentMessages } = await supabase
+        .from('messages')
+        .select('to_lobster_id, created_at')
+        .eq('from_lobster_id', lobster_id)
+        .gte('created_at', sevenDaysAgo);
+
+      const sentToIds = new Set((sentMessages || []).map((m: any) => m.to_lobster_id));
+
+      // 查询哪些目标回复过我（有 from_lobster_id = target 的消息回来）
+      const { data: replyMessages } = await supabase
+        .from('messages')
+        .select('from_lobster_id')
+        .eq('to_lobster_id', lobster_id)
+        .in('from_lobster_id', Array.from(sentToIds))
+        .gte('created_at', sevenDaysAgo);
+
+      const repliedIds = new Set((replyMessages || []).map((m: any) => m.from_lobster_id));
+
+      // 第三档：已发消息但没回复的（需要冷却 2 天）
+      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentNoReply } = await supabase
         .from('messages')
         .select('to_lobster_id')
         .eq('from_lobster_id', lobster_id)
-        .gte('created_at', new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString());
+        .gte('created_at', twoDaysAgo);
 
-      const visitedIds = new Set((recentVisited || []).map((m: any) => m.to_lobster_id));
-      const availableCandidates = hostCandidates.filter((l: any) => !visitedIds.has(l.id));
+      const cooledDown = new Set(
+        (sentMessages || [])
+          .filter((m: any) => !repliedIds.has(m.to_lobster_id))
+          .filter((m: any) => new Date(m.created_at) >= new Date(twoDaysAgo))
+          .map((m: any) => m.to_lobster_id)
+      );
 
-      // 如果最近 3 天全部拜访过，才允许重复
-      const candidates = availableCandidates.length > 0 ? availableCandidates : hostCandidates;
+      // 三档优先级分组
+      const tier1 = hostCandidates.filter((l: any) => !sentToIds.has(l.id)); // 从未发过消息
+      const tier2 = hostCandidates.filter((l: any) => sentToIds.has(l.id) && repliedIds.has(l.id)); // 对方回复过
+      const tier3 = hostCandidates.filter((l: any) => sentToIds.has(l.id) && !repliedIds.has(l.id) && !cooledDown.has(l.id)); // 冷却完成
+
+      // 选择优先级：tier1 > tier2 > tier3，如果全部冷却则允许重复
+      let candidates: any[];
+      if (tier1.length > 0) {
+        candidates = tier1;
+      } else if (tier2.length > 0) {
+        candidates = tier2;
+      } else if (tier3.length > 0) {
+        candidates = tier3;
+      } else {
+        candidates = hostCandidates; // 全部冷却，允许重复
+      }
+
       const host = candidates[Math.floor(Math.random() * candidates.length)];
       const { data: visitor } = await supabase
         .from('lobsters')
         .select('name, emoji, personality')
         .eq('id', lobster_id)
         .single();
+
+      // === Prompt 策略多样化：根据历史对话生成不同 prompt ===
+      const { data: prevMessages } = await supabase
+        .from('messages')
+        .select('id, content, from_lobster_id, to_lobster_id, created_at')
+        .or(`and(from_lobster_id.eq.${lobster_id},to_lobster_id.eq.${host.id}),and(from_lobster_id.eq.${host.id},to_lobster_id.eq.${lobster_id})`)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      const hasHistory = prevMessages && prevMessages.length > 0;
+      const lastReply = prevMessages?.find((m: any) => m.from_lobster_id === host.id);
+
+      let prompt: string;
+      if (!hasHistory) {
+        // 第一次见面
+        prompt = `你是${visitor?.emoji || '🦞'} ${visitor?.name || '未知'}，第一次见到${host.emoji || '🦞'} ${host.name}。
+【你的性格】${visitor?.personality || '友善'}
+【对方资料】性格: ${host.personality || '未知'}, 简介: ${host.bio || '未知'}
+
+请自然地打招呼，评论对方的某个特点，并问一个有趣的问题（至少30字）。禁止使用"你好"、"很高兴认识你"等套话。`;
+      } else if (lastReply) {
+        // 对方回复过，继续聊
+        prompt = `你是${visitor?.emoji || '🦞'} ${visitor?.name || '未知'}，之前和${host.emoji || '🦞'} ${host.name}聊过。
+【你的性格】${visitor?.personality || '友善'}
+【对方上次说】${(lastReply.content as string).slice(0, 100)}
+
+请回应对方的内容，分享你的观点，继续深入对话（至少30字）。`;
+      } else {
+        // 发过消息但没回复，换个角度聊
+        prompt = `你是${visitor?.emoji || '🦞'} ${visitor?.name || '未知'}，之前给${host.emoji || '🦞'} ${host.name}打过招呼但没收到回复。
+【你的性格】${visitor?.personality || '友善'}
+【对方资料】性格: ${host.personality || '未知'}, 简介: ${host.bio || '未知'}
+
+换个话题，分享一个有趣的观点或问一个新的问题（至少30字）。不要重复之前的打招呼。`;
+      }
 
       return {
         action: 'visit_lobster',
@@ -259,17 +336,7 @@ export async function decideAction(
           emoji: host.emoji,
           personality: host.personality,
         },
-        prompt: `你是 ${visitor?.emoji || '🦞'} ${visitor?.name || '未知'}，看到 ${host.emoji || '🦞'} ${host.name} 的龙虾，决定打个招呼。
-【你的性格】${visitor?.personality || '友善'}
-【对方资料】性格: ${host.personality || '未知'}, 简介: ${host.bio || '未知'}
-
-【规则】
-- 保持你的性格
-- 自然打招呼，可以评论对方的特点
-- 每条消息至少30字
-- 禁止透露主人私人信息
-
-请生成你说的第一句话：`,
+        prompt,
         context: {
           host_id: host.id,
           host_name: host.name,
