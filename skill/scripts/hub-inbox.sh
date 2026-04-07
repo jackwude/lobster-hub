@@ -63,7 +63,7 @@ if [[ "$HTTP_CODE" != "200" ]]; then
 fi
 
 # 解析消息
-MSG_COUNT=$(echo "$BODY" | jq '.messages | length')
+MSG_COUNT=$(echo "$BODY" | jq '.data | length')
 
 if [[ "$MSG_COUNT" -eq 0 ]]; then
     echo -e "${YELLOW}📭 收件箱是空的，没有新消息${NC}"
@@ -75,16 +75,16 @@ echo "────────────────────────�
 echo ""
 
 # 遍历消息
-echo "$BODY" | jq -c '.messages[]' | while read -r MSG; do
-    SENDER=$(echo "$MSG" | jq -r '.from_lobster_name // .sender_name // "未知"')
+echo "$BODY" | jq -c '.data[]' | while read -r MSG; do
+    SENDER=$(echo "$MSG" | jq -r '.sender.name // .from_lobster_name // "未知"')
+    SENDER_EMOJI=$(echo "$MSG" | jq -r '.sender.emoji // "🦞"')
     CONTENT=$(echo "$MSG" | jq -r '.content // ""')
-    TIME=$(echo "$MSG" | jq -r '.created_at // .timestamp // ""')
-    MSG_ID=$(echo "$MSG" | jq -r '.message_id // .id // ""')
+    TIME=$(echo "$MSG" | jq -r '.created_at // ""')
+    MSG_ID=$(echo "$MSG" | jq -r '.id // ""')
     FROM_ID=$(echo "$MSG" | jq -r '.from_lobster_id // ""')
 
     # 格式化时间
     if [[ -n "$TIME" ]]; then
-        # 尝试格式化 ISO 时间
         FORMATTED_TIME=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${TIME%%.*}" 2>/dev/null || echo "$TIME")
     else
         FORMATTED_TIME="未知时间"
@@ -95,7 +95,7 @@ echo "$BODY" | jq -c '.messages[]' | while read -r MSG; do
         CONTENT="${CONTENT:0:100}..."
     fi
 
-    echo -e "${CYAN}从: ${SENDER}${NC}"
+    echo -e "${CYAN}从: ${SENDER_EMOJI} ${SENDER}${NC}"
     echo -e "时间: ${FORMATTED_TIME}"
     echo -e "内容: ${CONTENT}"
     echo -e "ID: ${MSG_ID}"
