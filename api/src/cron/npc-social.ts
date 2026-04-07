@@ -263,6 +263,7 @@ async function decideNPCAction(
   }
 
   // 执行对应行动
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   switch (selectedAction) {
     case 'visit': {
       // 随机选择一个非 NPC 的龙虾拜访
@@ -274,28 +275,28 @@ async function decideNPCAction(
 
       if (!otherLobsters || otherLobsters.length === 0) return null;
 
-      // === 拜访目标去重：排除今天已拜访过的龙虾 ===
-      const { data: visitedToday } = await supabase
+      // === 拜访目标去重：排除最近 3 天已拜访过的龙虾 ===
+      const { data: visitedRecently } = await supabase
         .from('messages')
         .select('to_lobster_id')
         .eq('from_lobster_id', npcId)
-        .gte('created_at', `${today}T00:00:00Z`);
+        .gte('created_at', threeDaysAgo);
 
-      const visitedIds = new Set((visitedToday || []).map((m: any) => m.to_lobster_id));
+      const visitedIds = new Set((visitedRecently || []).map((m: any) => m.to_lobster_id));
       const availableTargets = otherLobsters.filter((l: any) => !visitedIds.has(l.id));
 
-      // 如果今天全部拜访过，允许重复（降级）
+      // 如果最近 3 天全部拜访过，允许重复（降级）
       const targetCandidates = availableTargets.length > 0 ? availableTargets : otherLobsters;
       const target = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
 
-      // === 模板去重：排除今天已发过的消息内容 ===
-      const { data: todayMessages } = await supabase
+      // === 模板去重：排除最近 3 天已发过的消息内容 ===
+      const { data: recentMessages } = await supabase
         .from('messages')
         .select('content')
         .eq('from_lobster_id', npcId)
-        .gte('created_at', `${today}T00:00:00Z`);
+        .gte('created_at', threeDaysAgo);
 
-      const usedContents = new Set((todayMessages || []).map((m: any) => m.content));
+      const usedContents = new Set((recentMessages || []).map((m: any) => m.content));
       const templates = npcDef.templates.visit || [];
       const availableTemplates = templates.filter((t) => !usedContents.has(t));
 
@@ -323,13 +324,13 @@ async function decideNPCAction(
 
       if (!activeTopics || activeTopics.length === 0) {
         // 没有活跃话题，降级为发动态
-        const { data: todayTlMsgs } = await supabase
+        const { data: recentTlFallback } = await supabase
           .from('timeline')
           .select('content')
           .eq('lobster_id', npcId)
-          .gte('created_at', `${today}T00:00:00Z`);
+          .gte('created_at', threeDaysAgo);
 
-        const usedTlContents = new Set((todayTlMsgs || []).map((m: any) => m.content));
+        const usedTlContents = new Set((recentTlFallback || []).map((m: any) => m.content));
         const tlTemplates = npcDef.templates.timeline || [];
         const availableTl = tlTemplates.filter((t) => !usedTlContents.has(t));
         const content = availableTl.length > 0
@@ -340,14 +341,14 @@ async function decideNPCAction(
 
       const topic = activeTopics[Math.floor(Math.random() * activeTopics.length)];
 
-      // === 模板去重：排除今天已发过的 topic 消息 ===
-      const { data: todayTopicMsgs } = await supabase
+      // === 模板去重：排除最近 3 天已发过的 topic 消息 ===
+      const { data: recentTopicMsgs } = await supabase
         .from('topic_participations')
         .select('summary')
         .eq('lobster_id', npcId)
-        .gte('created_at', `${today}T00:00:00Z`);
+        .gte('created_at', threeDaysAgo);
 
-      const usedTopicContents = new Set((todayTopicMsgs || []).map((m: any) => m.summary));
+      const usedTopicContents = new Set((recentTopicMsgs || []).map((m: any) => m.summary));
       const templates = npcDef.templates.topic || [];
       const availableTemplates = templates.filter((t) => !usedTopicContents.has(t));
       const content = availableTemplates.length > 0
@@ -363,14 +364,14 @@ async function decideNPCAction(
     }
 
     case 'timeline': {
-      // === 模板去重：排除今天已发过的 timeline 内容 ===
-      const { data: todayTlMsgs } = await supabase
+      // === 模板去重：排除最近 3 天已发过的 timeline 内容 ===
+      const { data: recentTlMsgs } = await supabase
         .from('timeline')
         .select('content')
         .eq('lobster_id', npcId)
-        .gte('created_at', `${today}T00:00:00Z`);
+        .gte('created_at', threeDaysAgo);
 
-      const usedContents = new Set((todayTlMsgs || []).map((m: any) => m.content));
+      const usedContents = new Set((recentTlMsgs || []).map((m: any) => m.content));
       const templates = npcDef.templates.timeline || [];
       const availableTemplates = templates.filter((t) => !usedContents.has(t));
       const content = availableTemplates.length > 0
