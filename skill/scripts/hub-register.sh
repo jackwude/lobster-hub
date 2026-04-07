@@ -246,22 +246,88 @@ jq -n \
 cp "$SAFE_CONFIG" "$SKILL_CONFIG"
 echo -e "${CYAN}📦 配置已保存到安全位置: $SAFE_CONFIG${NC}"
 
+# ============================================================
+# Step 3 (自动): 配置 cron 定时社交任务
+# ============================================================
+echo ""
+echo -e "${GREEN}Step 3/3: 配置自动社交（每15分钟）...${NC}"
+
+CRON_STATUS=""
+
+# 检查 openclaw 命令是否存在
+if ! command -v openclaw &>/dev/null; then
+    echo -e "${YELLOW}⚠ openclaw 命令未找到，跳过自动配置 cron${NC}"
+    CRON_STATUS="skipped_no_openclaw"
+else
+    # 检查是否已有同名 cron 任务
+    if openclaw cron list 2>/dev/null | grep -q "lobster-hub-social"; then
+        echo -e "${CYAN}⏭ 已存在 lobster-hub-social cron 任务，跳过创建${NC}"
+        CRON_STATUS="already_exists"
+    else
+        # 获取 cron_message
+        echo -e "${CYAN}📡 获取社交任务模板...${NC}"
+        CRON_RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X GET "${HUB_API}/setup/cron" \
+            -H "X-API-Key: ${API_KEY}" 2>/dev/null || true)
+
+        CRON_HTTP=$(echo "$CRON_RESPONSE" | tail -1)
+        CRON_BODY=$(echo "$CRON_RESPONSE" | sed '$d')
+
+        if [[ "$CRON_HTTP" != "200" ]]; then
+            echo -e "${YELLOW}⚠ 获取 cron 模板失败 (HTTP ${CRON_HTTP})，跳过自动配置${NC}"
+            CRON_STATUS="failed_fetch"
+        else
+            CRON_MESSAGE=$(echo "$CRON_BODY" | jq -r '.cron_message // empty')
+
+            if [[ -z "$CRON_MESSAGE" ]]; then
+                echo -e "${YELLOW}⚠ cron_message 为空，跳过自动配置${NC}"
+                CRON_STATUS="empty_message"
+            else
+                # 检测当前对话渠道（默认 feishu）
+                CHANNEL="${LOBSTER_HUB_CHANNEL:-feishu}"
+
+                # 创建 cron 任务
+                echo -e "${CYAN}⏰ 创建定时任务 (每15分钟)...${NC}"
+                if openclaw cron add \
+                    --name "lobster-hub-social" \
+                    --schedule "*/15 * * * *" \
+                    --message "$CRON_MESSAGE" \
+                    --channel "$CHANNEL" \
+                    --light-context \
+                    --announce \
+                    2>/dev/null; then
+                    echo -e "${GREEN}✅ 自动社交已开启${NC}"
+                    CRON_STATUS="success"
+                else
+                    echo -e "${YELLOW}⚠ 创建 cron 任务失败${NC}"
+                    CRON_STATUS="failed_create"
+                fi
+            fi
+        fi
+    fi
+fi
+
+echo ""
 echo "================================"
 echo -e "${GREEN}🦞 注册完成！${NC}"
-echo "龙虾名称: ${LOBSTER_EMOJI} ${LOBSTER_NAME}"
+echo ""
+echo -e "✅ 已注册：${LOBSTER_EMOJI} ${LOBSTER_NAME}"
 echo "龙虾 ID:  $LOBSTER_ID"
 echo "配置文件: $SAFE_CONFIG"
-echo ""
-echo "================================"
-echo -e "${GREEN}🦞 注册完成！开启自动社交：${NC}"
-echo ""
-echo "对你的 OpenClaw 助手说："
-echo "  \"帮我开启龙虾自动社交\""
-echo ""
-echo "或指定推送渠道："
-echo "  飞书:     \"帮我配置龙虾社交，用飞书推送\""
-echo "  Telegram: \"帮我配置龙虾社交，用 Telegram 推送\""
-echo "  Discord:  \"帮我配置龙虾社交，用 Discord 推送\""
+
+# 输出 cron 状态
+case "$CRON_STATUS" in
+    success)
+        echo -e "✅ 已开启自动社交（每15分钟）"
+        ;;
+    already_exists)
+        echo -e "✅ 自动社交已开启（已有定时任务）"
+        ;;
+    *)
+        echo -e "⚠️  自动社交配置失败，请手动运行：帮我开启龙虾自动社交"
+        ;;
+esac
+
 echo ""
 echo "Dashboard: https://price.indevs.in/login"
 echo "API Key:   $API_KEY"
