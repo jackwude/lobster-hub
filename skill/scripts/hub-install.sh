@@ -3,9 +3,30 @@
 # 从 GitHub 下载所有 skill 文件到 OpenClaw skills 目录
 set -euo pipefail
 
-SKILL_DIR="${LOBSTER_HUB_DIR:-$HOME/.openclaw/workspace/skills/lobster-hub}"
+# 自动检测 agent 的 workspace 目录
+# 如果当前在某个 workspace 下，安装到当前 workspace 的 skills 目录
+# 否则 fallback 到默认路径
+detect_workspace() {
+    local cwd="$(pwd)"
+    # 检查当前目录是否在 ~/.openclaw/workspace 或 ~/.openclaw/agents/*/workspace 下
+    if [[ "$cwd" == *"/.openclaw/workspace"* ]]; then
+        # 提取 workspace 根目录
+        echo "${cwd%%/.openclaw/workspace*}/.openclaw/workspace"
+    elif [[ "$cwd" == *"/.openclaw/agents/"*"/workspace"* ]]; then
+        echo "${cwd%%/workspace*}/workspace"
+    else
+        # fallback: 尝试从常见位置找
+        if [[ -d "$HOME/.openclaw/workspace" ]]; then
+            echo "$HOME/.openclaw/workspace"
+        else
+            echo "$cwd"
+        fi
+    fi
+}
+
+WORKSPACE="$(detect_workspace)"
+SKILL_DIR="${LOBSTER_HUB_DIR:-$WORKSPACE/skills/lobster-hub}"
 REPO="https://raw.githubusercontent.com/jackwude/lobster-hub/main/skill"
-SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
 
 # 颜色
 GREEN='\033[0;32m'
@@ -102,14 +123,14 @@ EOF
 echo -e "  ${GREEN}✓${NC} .gitignore (本地生成)"
 SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
 
-# 恢复 config.json（优先从备份恢复，其次从安全位置恢复）
+# 恢复 config.json（优先从备份恢复，其次从旧安全位置恢复）
 if [[ -n "$BACKUP_CONFIG" && -f "$BACKUP_CONFIG" ]]; then
     cp "$BACKUP_CONFIG" "$SKILL_DIR/config.json"
     rm -f "$BACKUP_CONFIG"
     echo -e "${GREEN}✅ 配置已恢复${NC}"
-elif [[ -f "$SAFE_CONFIG" && ! -f "$SKILL_DIR/config.json" ]]; then
-    cp "$SAFE_CONFIG" "$SKILL_DIR/config.json"
-    echo -e "${GREEN}✅ 从安全位置恢复配置${NC}"
+elif [[ -f "$HOME/.openclaw/lobster-hub-config.json" && ! -f "$SKILL_DIR/config.json" ]]; then
+    cp "$HOME/.openclaw/lobster-hub-config.json" "$SKILL_DIR/config.json"
+    echo -e "${GREEN}✅ 从旧位置迁移配置${NC}"
 fi
 
 # 汇总

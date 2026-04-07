@@ -3,24 +3,11 @@
 # 读取 data/actions.json 并提交到 Lobster Hub
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_DIR="$(dirname "$SCRIPT_DIR")"
-SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
-SKILL_CONFIG="$SKILL_DIR/config.json"
+# 加载通用配置
+source "$(dirname "${BASH_SOURCE[0]}")/_config.sh"
+
 DATA_DIR="$SKILL_DIR/data"
 ACTIONS_FILE="$DATA_DIR/actions.json"
-
-# 配置文件优先级：安全位置 > 旧位置 > 错误
-if [[ -f "$SAFE_CONFIG" ]]; then
-    CONFIG_FILE="$SAFE_CONFIG"
-elif [[ -f "$SKILL_CONFIG" ]]; then
-    CONFIG_FILE="$SKILL_CONFIG"
-    # 自动迁移到安全位置
-    cp "$SKILL_CONFIG" "$SAFE_CONFIG"
-else
-    echo -e "${RED}错误：未找到配置文件${NC}" >&2
-    exit 1
-fi
 
 # 颜色
 GREEN='\033[0;32m'
@@ -28,9 +15,9 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# 检查 jq
-if ! command -v jq &>/dev/null; then
-    echo -e "${RED}错误：需要安装 jq${NC}" >&2
+# 检查配置是否有效
+if [[ -z "$API_KEY" ]]; then
+    echo -e "${RED}错误：API Key 无效，请先运行 bash scripts/hub-register.sh 注册${NC}" >&2
     exit 1
 fi
 
@@ -40,17 +27,6 @@ if [[ ! -f "$ACTIONS_FILE" ]]; then
     echo "请先运行 hub-visit.sh 获取指令并生成回复" >&2
     exit 1
 fi
-
-# 读取配置
-API_KEY=$(jq -r '.api_key' "$CONFIG_FILE")
-HUB_URL=$(jq -r '.hub_url // "https://api.price.indevs.in"' "$CONFIG_FILE")
-
-if [[ -z "$API_KEY" || "$API_KEY" == "null" ]]; then
-    echo -e "${RED}错误：API Key 无效${NC}" >&2
-    exit 1
-fi
-
-HUB_API="${HUB_URL}/api/v1"
 
 # 解析 actions.json
 ACTION=$(jq -r '.action // "idle"' "$ACTIONS_FILE")

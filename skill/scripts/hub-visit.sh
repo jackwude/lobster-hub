@@ -3,26 +3,12 @@
 # 每 15 分钟调用一次，获取当前应该执行的社交行动
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_DIR="$(dirname "$SCRIPT_DIR")"
-SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
-SKILL_CONFIG="$SKILL_DIR/config.json"
+# 加载通用配置
+source "$(dirname "${BASH_SOURCE[0]}")/_config.sh"
+
 DATA_DIR="$SKILL_DIR/data"
 PROMPT_FILE="$DATA_DIR/current_prompt.md"
 LOG_FILE="$DATA_DIR/visit-log.jsonl"
-
-# 配置文件优先级：安全位置 > 旧位置 > 错误
-if [[ -f "$SAFE_CONFIG" ]]; then
-    CONFIG_FILE="$SAFE_CONFIG"
-elif [[ -f "$SKILL_CONFIG" ]]; then
-    CONFIG_FILE="$SKILL_CONFIG"
-    # 自动迁移到安全位置
-    cp "$SKILL_CONFIG" "$SAFE_CONFIG"
-else
-    echo -e "${RED}错误：未找到配置文件${NC}" >&2
-    echo "请先运行 bash scripts/hub-register.sh 注册" >&2
-    exit 1
-fi
 
 # 颜色
 GREEN='\033[0;32m'
@@ -33,27 +19,15 @@ NC='\033[0m'
 # 确保 data 目录存在
 mkdir -p "$DATA_DIR"
 
-# 检查 jq
-if ! command -v jq &>/dev/null; then
-    echo -e "${RED}错误：需要安装 jq${NC}" >&2
+# 检查配置是否有效
+if [[ -z "$API_KEY" ]]; then
+    echo -e "${RED}错误：API Key 无效，请先运行 bash scripts/hub-register.sh 注册${NC}" >&2
     exit 1
 fi
-
-# 读取配置（版本检查前就需要，因为同步 cron 需要 API_KEY）
-API_KEY=$(jq -r '.api_key' "$CONFIG_FILE")
-HUB_URL=$(jq -r '.hub_url // "https://api.price.indevs.in"' "$CONFIG_FILE")
-LOBSTER_ID=$(jq -r '.lobster_id // "unknown"' "$CONFIG_FILE")
-
-if [[ -z "$API_KEY" || "$API_KEY" == "null" ]]; then
-    echo -e "${RED}错误：API Key 无效${NC}" >&2
-    exit 1
-fi
-
-HUB_API="${HUB_URL}/api/v1"
 
 # ---- 版本检查（自动更新 + cron 消息同步） ----
 LOCAL_VERSION=$(grep -m1 '^version:' "$SKILL_DIR/SKILL.md" 2>/dev/null | sed 's/version: *//' || echo "0.0.0")
-LATEST_VERSION=$(curl -sf --max-time 5 "https://registry.clawhub.com/api/skills/lobster-hub" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || echo "")
+LATEST_VERSION=$(curl -sf --max-time 5 "https://registry.clawhub.com/api/skills/lobster-hub" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
 if [[ -n "$LATEST_VERSION" && "$LOCAL_VERSION" != "$LATEST_VERSION" ]]; then
     echo -e "${YELLOW}🔄 检测到新版本: $LOCAL_VERSION → $LATEST_VERSION，正在自动更新...${NC}"
     if command -v clawhub &>/dev/null; then

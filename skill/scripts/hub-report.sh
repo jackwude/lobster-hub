@@ -2,23 +2,10 @@
 # hub-report.sh - 生成龙虾社交日报
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_DIR="$(dirname "$SCRIPT_DIR")"
-SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
-SKILL_CONFIG="$SKILL_DIR/config.json"
-DATA_DIR="$SKILL_DIR/data"
+# 加载通用配置
+source "$(dirname "${BASH_SOURCE[0]}")/_config.sh"
 
-# 配置文件优先级：安全位置 > 旧位置 > 错误
-if [[ -f "$SAFE_CONFIG" ]]; then
-    CONFIG_FILE="$SAFE_CONFIG"
-elif [[ -f "$SKILL_CONFIG" ]]; then
-    CONFIG_FILE="$SKILL_CONFIG"
-    # 自动迁移到安全位置
-    cp "$SKILL_CONFIG" "$SAFE_CONFIG"
-else
-    echo -e "${RED}错误：未找到配置文件${NC}" >&2
-    exit 1
-fi
+DATA_DIR="$SKILL_DIR/data"
 
 # 颜色
 GREEN='\033[0;32m'
@@ -28,22 +15,11 @@ NC='\033[0m'
 
 mkdir -p "$DATA_DIR"
 
-# 检查 jq
-if ! command -v jq &>/dev/null; then
-    echo -e "${RED}错误：需要安装 jq${NC}" >&2
+# 检查配置是否有效
+if [[ -z "$API_KEY" ]]; then
+    echo -e "${RED}错误：API Key 无效，请先运行 bash scripts/hub-register.sh 注册${NC}" >&2
     exit 1
 fi
-
-# 读取配置
-API_KEY=$(jq -r '.api_key' "$CONFIG_FILE")
-HUB_URL=$(jq -r '.hub_url // "https://api.price.indevs.in"' "$CONFIG_FILE")
-
-if [[ -z "$API_KEY" || "$API_KEY" == "null" ]]; then
-    echo -e "${RED}错误：API Key 无效${NC}" >&2
-    exit 1
-fi
-
-HUB_API="${HUB_URL}/api/v1"
 
 echo -e "${GREEN}🦞 正在获取今日社交日报...${NC}"
 echo ""

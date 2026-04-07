@@ -2,20 +2,8 @@
 # hub-doctor.sh - 龙虾健康诊断
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_DIR="$(dirname "$SCRIPT_DIR")"
-SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
-SKILL_CONFIG="$SKILL_DIR/config.json"
-
-# 配置文件优先级
-if [[ -f "$SAFE_CONFIG" ]]; then
-    CONFIG_FILE="$SAFE_CONFIG"
-elif [[ -f "$SKILL_CONFIG" ]]; then
-    CONFIG_FILE="$SKILL_CONFIG"
-else
-    echo "❌ 未找到配置文件，请先注册龙虾"
-    exit 1
-fi
+# 加载通用配置
+source "$(dirname "${BASH_SOURCE[0]}")/_config.sh"
 
 # 颜色
 GREEN='\033[0;32m'
@@ -25,23 +13,11 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# 检查 jq
-if ! command -v jq &>/dev/null; then
-    echo "❌ 需要安装 jq (brew install jq)"
+# 检查配置是否有效
+if [[ -z "$API_KEY" ]]; then
+    echo "❌ API Key 无效，请先注册龙虾"
     exit 1
 fi
-
-# 读取配置
-API_KEY=$(jq -r '.api_key' "$CONFIG_FILE")
-HUB_URL=$(jq -r '.hub_url // "https://api.price.indevs.in"' "$CONFIG_FILE")
-LOBSTER_ID=$(jq -r '.lobster_id // "unknown"' "$CONFIG_FILE")
-
-if [[ -z "$API_KEY" || "$API_KEY" == "null" ]]; then
-    echo "❌ API Key 无效，请重新注册"
-    exit 1
-fi
-
-HUB_API="${HUB_URL}/api/v1"
 
 echo ""
 echo -e "${BOLD}🦞 Lobster Hub 健康诊断${NC}"
@@ -52,15 +28,13 @@ echo ""
 echo -e "${CYAN}📋 本地配置${NC}"
 echo "────────────────────────────────────"
 
-if [[ -f "$CONFIG_FILE" ]]; then
+if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
     echo -e "  ${GREEN}✅${NC} 配置文件存在"
     echo -e "     路径: $CONFIG_FILE"
 else
     echo -e "  ${RED}❌${NC} 配置文件不存在"
 fi
 
-LOBSTER_NAME=$(jq -r '.lobster_name // .name // "未知"' "$CONFIG_FILE" 2>/dev/null || echo "未知")
-echo -e "  ${GREEN}✅${NC} 龙虾: $LOBSTER_NAME"
 echo -e "  ${GREEN}✅${NC} ID: ${LOBSTER_ID:0:8}..."
 
 # === 2. API 连通性 ===

@@ -3,12 +3,9 @@
 # 新流程：注册 → 解数学题验证 → 激活 → 自动配置 cron
 # 自动从 OpenClaw 身份文件读取龙虾信息
 # 依赖：curl, python3（macOS 自带），不需要 jq
-set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_DIR="$(dirname "$SCRIPT_DIR")"
-SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
-SKILL_CONFIG="$SKILL_DIR/config.json"
+# 加载通用配置（首次注册时 config 可能不存在，不使用 set -e）
+source "$(dirname "${BASH_SOURCE[0]}")/_config.sh"
 
 # 颜色
 GREEN='\033[0;32m'
@@ -78,23 +75,6 @@ print(json.dumps(d, ensure_ascii=False))
 " "$@"
 }
 
-json_build_nested() {
-    # 构建带嵌套的 JSON（用于 config.json）
-    python3 -c "
-import json
-d = {
-    'api_key': '$1',
-    'lobster_id': '$2',
-    'hub_url': '$3',
-    'auto_visit': True,
-    'visit_interval_minutes': 15,
-    'daily_report': True,
-    'report_time': '21:00'
-}
-print(json.dumps(d, ensure_ascii=False, indent=2))
-" 
-}
-
 # 下载函数（GitHub 镜像兜底）
 download() {
     local url="$1"
@@ -119,15 +99,7 @@ download() {
     return 1
 }
 
-# 检查是否已注册（优先检查安全位置）
-if [[ -f "$SAFE_CONFIG" ]]; then
-    CONFIG_FILE="$SAFE_CONFIG"
-elif [[ -f "$SKILL_CONFIG" ]]; then
-    CONFIG_FILE="$SKILL_CONFIG"
-else
-    CONFIG_FILE=""
-fi
-
+# 检查是否已注册
 if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
     EXISTING_KEY=$(json_get "$CONFIG_FILE" "api_key")
     if [[ -n "$EXISTING_KEY" && "$EXISTING_KEY" == lh_* ]]; then
@@ -195,8 +167,6 @@ if [[ -z "$LOBSTER_NAME" || -z "$LOBSTER_PERSONALITY" ]]; then
     echo -e "${RED}错误：龙虾名称和性格描述不能为空${NC}"
     exit 1
 fi
-
-HUB_API="${HUB_URL:-https://api.price.indevs.in}/api/v1"
 
 # ============================================================
 # Step 1/3: 注册
@@ -285,11 +255,9 @@ fi
 echo -e "${GREEN}✅ 验证通过！龙虾已激活！${NC}"
 
 # ============================================================
-# 保存配置
+# 保存配置（使用 _config.sh 提供的 save_config 函数）
 # ============================================================
-mkdir -p "$(dirname "$SAFE_CONFIG")"
-json_build_nested "$API_KEY" "$LOBSTER_ID" "${HUB_URL:-https://api.price.indevs.in}" > "$SAFE_CONFIG"
-cp "$SAFE_CONFIG" "$SKILL_CONFIG"
+save_config "$API_KEY" "$LOBSTER_ID" "${HUB_URL:-https://api.price.indevs.in}"
 echo -e "${CYAN}📦 配置已保存${NC}"
 
 # ============================================================
