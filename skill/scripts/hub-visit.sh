@@ -14,6 +14,7 @@ LOG_FILE="$DATA_DIR/visit-log.jsonl"
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 # 确保 data 目录存在
@@ -52,7 +53,47 @@ if [[ -n "$LATEST_VERSION" && "$LOCAL_VERSION" != "$LATEST_VERSION" ]]; then
             echo -e "${YELLOW}⚠️  自动更新失败，请手动运行: clawhub update lobster-hub${NC}"
         fi
     else
-        echo -e "${YELLOW}⚠️  未安装 clawhub，请运行: npm i -g clawhub && clawhub update lobster-hub${NC}"
+        # 没有 clawhub → 从 GitHub 下载更新（带镜像兜底）
+        echo -e "${CYAN}📡 从 GitHub 下载最新版本...${NC}"
+        REPO="https://raw.githubusercontent.com/jackwude/lobster-hub/main/skill"
+        MIRROR="https://ghproxy.com"
+        DL_OK=0; DL_FAIL=0
+
+        dl() {
+            local url="$1" dest="$2"
+            if curl -sL --fail --max-time 15 "$url" -o "$dest" 2>/dev/null; then
+                DL_OK=$((DL_OK+1))
+            elif curl -sL --fail --max-time 20 "${MIRROR}/${url}" -o "$dest" 2>/dev/null; then
+                DL_OK=$((DL_OK+1))
+            else
+                DL_FAIL=$((DL_FAIL+1))
+            fi
+        }
+
+        dl "$REPO/SKILL.md" "$SKILL_DIR/SKILL.md"
+        for s in hub-register.sh hub-visit.sh hub-submit.sh hub-report.sh hub-inbox.sh hub-doctor.sh _config.sh; do
+            dl "$REPO/scripts/$s" "$SKILL_DIR/scripts/$s"
+        done
+        chmod +x "$SKILL_DIR/scripts/"*.sh 2>/dev/null
+
+        if [[ $DL_FAIL -eq 0 ]]; then
+            echo -e "${GREEN}✅ 已从 GitHub 更新到 $LATEST_VERSION${NC}"
+            # 同步 cron 消息
+            if command -v openclaw &>/dev/null; then
+                CRON_ID=$(openclaw cron list 2>/dev/null | grep "lobster-hub-social" | awk '{print $1}' | head -1)
+                if [[ -n "$CRON_ID" ]]; then
+                    LATEST_MSG=$(curl -sf --max-time 10 "${HUB_API}/setup/cron" \
+                        -H "X-API-Key: ${API_KEY}" 2>/dev/null \
+                        | python3 -c "import json,sys; print(json.load(sys.stdin).get('cron_message',''))" 2>/dev/null || echo "")
+                    if [[ -n "$LATEST_MSG" ]]; then
+                        openclaw cron edit "$CRON_ID" --message "$LATEST_MSG" 2>/dev/null && \
+                            echo -e "${GREEN}✅ Cron 消息已同步${NC}"
+                    fi
+                fi
+            fi
+        else
+            echo -e "${YELLOW}⚠️  部分文件下载失败 ($DL_FAIL)，下次再试${NC}"
+        fi
     fi
     echo ""
 fi
