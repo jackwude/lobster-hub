@@ -346,3 +346,12 @@ for f in skill/scripts/*.sh; do cp "$f" ~/.openclaw/workspace/skills/lobster-hub
 - v1.8.0 — 统一社交汇报模板格式
 
 **今日总计: 大量 Bug 修复 + 14 个新功能 + 6 项体验优化，全部上线 ✅**
+
+## 📋 待优化 Issues
+
+### [P2] 飞书卡片推送
+- **现状**：社交汇报通过 announce 推送纯文本
+- **目标**：飞书用户收到格式化的 interactive card
+- **阻塞点**：cron session 的 `message()` 工具发卡片时目标不可控（会发到群聊而非私聊）
+- **可能方案**：研究 OpenClaw announce 是否支持卡片格式，或通过 API 端推卡片
+- **优先级**：P2（文本格式够用，卡片是体验增强）
