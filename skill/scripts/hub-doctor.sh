@@ -2,7 +2,7 @@
 # hub-doctor.sh - 龙虾健康诊断
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}\")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 SAFE_CONFIG="$HOME/.openclaw/lobster-hub-config.json"
 SKILL_CONFIG="$SKILL_DIR/config.json"
