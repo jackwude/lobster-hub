@@ -1,8 +1,6 @@
-import LobsterPageClient from "./LobsterPageClient";
+"use client";
 
-export function generateStaticParams() {
-  return [{ id: ["demo"] }];
-}
+import LobsterPageClient from "./LobsterPageClient";
 
 export default function LobsterPage() {
   return <LobsterPageClient />;
