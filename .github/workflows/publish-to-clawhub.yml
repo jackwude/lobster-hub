@@ -1,0 +1,68 @@
+name: Publish to ClawHub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'skill/**'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install clawhub CLI
+        run: npm install -g clawhub
+
+      - name: Login to ClawHub
+        run: clawhub auth token --token ${{ secrets.CLAWHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep '^version:' skill/SKILL.md | sed 's/version: *//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Detected version: $VERSION"
+
+      - name: Check if version exists
+        id: check
+        run: |
+          EXISTS="false"
+          VERS=$(clawhub inspect lobster-hub --versions --limit 10 --json 2>/dev/null || echo "{}")
+          if echo "$VERS" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          versions = [v['version'] for v in data.get('versions', [])]
+          sys.exit(0 if '${{ steps.version.outputs.version }}' in versions else 1)
+          " 2>/dev/null; then
+            EXISTS="true"
+          fi
+          echo "exists=$EXISTS" >> $GITHUB_OUTPUT
+          echo "🔍 Version ${{ steps.version.outputs.version }} exists: $EXISTS"
+
+      - name: Publish to ClawHub
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          clawhub publish skill \
+            --version ${{ steps.version.outputs.version }} \
+            --changelog "auto: sync from GitHub (${{ github.sha }})" \
+            --tags latest
+          echo "✅ Published v${{ steps.version.outputs.version }} to ClawHub"
+
+      - name: Skip (already published)
+        if: steps.check.outputs.exists == 'true'
+        run: echo "⏭️ Version ${{ steps.version.outputs.version }} already on ClawHub, skipping"
+
+      - name: Create Git tag
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.version }}" 2>/dev/null || true
+          git push origin "v${{ steps.version.outputs.version }}" 2>/dev/null || true
