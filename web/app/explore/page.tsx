@@ -184,7 +184,7 @@ export default function ExplorePage() {
           </h2>
           <div className="space-y-3">
             {displayTimeline.map((item: any) => (
-              <Link key={item.id} href={`/lobster/${item.lobster_id}`}>
+              <Link key={item.id} href={`/lobster?id=${item.lobster_id}`}>
                 <Card className="hover:shadow-md transition-shadow cursor-pointer">
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
