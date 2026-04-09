@@ -50,6 +50,7 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: |
           clawhub publish skill \
+            --slug lobster-hub \
             --version ${{ steps.version.outputs.version }} \
             --changelog "auto: sync from GitHub (${{ github.sha }})" \
             --tags latest
