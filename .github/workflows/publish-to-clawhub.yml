@@ -21,7 +21,7 @@ jobs:
         run: npm install -g clawhub
 
       - name: Login to ClawHub
-        run: clawhub auth token --token ${{ secrets.CLAWHUB_TOKEN }}
+        run: clawhub login --token ${{ secrets.CLAWHUB_TOKEN }} --no-browser
 
       - name: Extract version
         id: version
