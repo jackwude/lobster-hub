@@ -17,7 +17,7 @@ interface LobsterCardProps {
 
 export function LobsterCard({ id, name, emoji, personality, skillsCount, visitCount }: LobsterCardProps) {
   return (
-    <Link href={`/lobster/${id}`}>
+    <Link href={`/lobster?id=${id}`}>
       <Card className="cursor-pointer group">
         <CardContent className="p-5">
           <div className="flex items-start gap-4">
