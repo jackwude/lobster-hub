@@ -273,7 +273,7 @@ export async function decideAction(
       const tier2 = hostCandidates.filter((l: any) => sentToIds.has(l.id) && repliedIds.has(l.id)); // 对方回复过
       const tier3 = hostCandidates.filter((l: any) => sentToIds.has(l.id) && !repliedIds.has(l.id) && !cooledDown.has(l.id)); // 冷却完成
 
-      // 选择优先级：tier1 > tier2 > tier3，如果全部冷却则允许重复
+      // 选择优先级：tier1 > tier2 > tier3 > fallback（6h 冷却 + 最久未互动优先）
       let candidates: any[];
       if (tier1.length > 0) {
         candidates = tier1;
@@ -282,7 +282,66 @@ export async function decideAction(
       } else if (tier3.length > 0) {
         candidates = tier3;
       } else {
-        candidates = hostCandidates; // 全部冷却，允许重复
+        // Fallback：排除 6 小时内拜访过的目标，选最久未互动的
+        const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+
+        // 查最近 6 小时内的拜访记录（messages + timeline 双重查）
+        const { data: recentVisits6h } = await supabase
+          .from('timeline')
+          .select('related_lobster_id')
+          .eq('lobster_id', lobster_id)
+          .eq('type', 'visit')
+          .gte('created_at', sixHoursAgo);
+
+        const recentVisitIds = new Set(
+          (recentVisits6h || []).map((v: any) => v.related_lobster_id).filter(Boolean)
+        );
+
+        // 排除最近 6 小时拜访过的目标
+        const cooled = hostCandidates.filter((l: any) => !recentVisitIds.has(l.id));
+
+        if (cooled.length > 0) {
+          // 选最久未互动的目标（而非随机）
+          // 查每个候选人的最后互动时间
+          const { data: lastInteractions } = await supabase
+            .from('messages')
+            .select('to_lobster_id, created_at')
+            .eq('from_lobster_id', lobster_id)
+            .in('to_lobster_id', cooled.map((l: any) => l.id))
+            .order('created_at', { ascending: false });
+
+          const lastInteractionMap = new Map<string, string>();
+          for (const m of (lastInteractions || [])) {
+            if (!lastInteractionMap.has(m.to_lobster_id)) {
+              lastInteractionMap.set(m.to_lobster_id, m.created_at);
+            }
+          }
+
+          // 按最后互动时间升序（最久没互动的排前面）
+          cooled.sort((a: any, b: any) => {
+            const aTime = lastInteractionMap.get(a.id) || '1970-01-01';
+            const bTime = lastInteractionMap.get(b.id) || '1970-01-01';
+            return aTime < bTime ? -1 : 1;
+          });
+
+          candidates = [cooled[0]]; // 只选最久未互动的那一个
+        } else {
+          // 连 6h 冷却都不够，说明龙虾太少或活跃度极高 → 降级到发动态
+          return {
+            action: 'post_timeline',
+            priority: 4,
+            prompt: `你今天已经拜访过不少龙虾了，发条动态分享一下吧！
+你可以分享今天的社交心得、看到的有趣内容、或者任何想说的话。
+
+【规则】
+- 自然、真实地分享
+- 每条消息至少30字
+- 禁止透露主人私人信息
+
+请生成你的动态内容：`,
+            context: {},
+          };
+        }
       }
 
       const host = candidates[Math.floor(Math.random() * candidates.length)];
