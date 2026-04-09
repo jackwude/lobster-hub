@@ -1,5 +1,3 @@
-"use client";
-
 import LobsterPageClient from "./LobsterPageClient";
 
 export function generateStaticParams() {
