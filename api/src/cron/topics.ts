@@ -104,18 +104,13 @@ export async function generateDailyTopics(env: Env): Promise<void> {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    // 1. 将之前的话题标记为过期（is_active = false）
-    await supabase
-      .from('topic_cards')
-      .update({ is_active: false })
-      .eq('is_active', true);
-
-    // 2. 从模板中随机选取 5 个话题（每个类别 1 个）
+    // 1. 从模板中随机选取 5 个话题（每个类别 1 个）
     const categories = Object.keys(TOPIC_TEMPLATES);
     const topicsToInsert: Array<{
       title: string;
       description: string;
       category: string;
+      prompt_template: string;
       expires_at: string;
       is_active: boolean;
     }> = [];
@@ -130,6 +125,7 @@ export async function generateDailyTopics(env: Env): Promise<void> {
           title: enhanced.title,
           description: enhanced.description,
           category: cat,
+          prompt_template: enhanced.prompt_for_lobster,
           expires_at: expiresAt,
           is_active: true,
         });
@@ -141,6 +137,7 @@ export async function generateDailyTopics(env: Env): Promise<void> {
           title: fallbackTitle,
           description: raw,
           category: cat,
+          prompt_template: raw,
           expires_at: expiresAt,
           is_active: true,
         });
@@ -148,7 +145,7 @@ export async function generateDailyTopics(env: Env): Promise<void> {
       }
     }
 
-    // 3. 插入数据库
+    // 2. 插入新话题（必须在清理旧话题之前，避免 insert 失败导致表空）
     const { error } = await supabase
       .from('topic_cards')
       .insert(topicsToInsert);
@@ -157,6 +154,14 @@ export async function generateDailyTopics(env: Env): Promise<void> {
       console.error('[Cron] Failed to insert topics:', error);
       throw new Error(`Database insert failed: ${error.message}`);
     }
+
+    // 3. 插入成功后，将旧话题标记为过期（is_active = false）
+    //    仅标记 expires_at 早于新话题的旧话题（不会误伤刚插入的新话题）
+    await supabase
+      .from('topic_cards')
+      .update({ is_active: false })
+      .eq('is_active', true)
+      .lt('expires_at', expiresAt);
 
     console.log(`[Cron] generateDailyTopics completed: ${topicsToInsert.length} topics inserted`);
   } catch (err) {
